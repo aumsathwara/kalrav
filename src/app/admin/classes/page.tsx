@@ -1,12 +1,9 @@
 import Link from "next/link"
+import { getClasses } from "@/lib/actions/tests.actions"
 
-export default function AdminClassesPage() {
-  // Mock data for MVP
-  const classes = [
-    { id: "c1", name: "Std 5", students: 12 },
-    { id: "c2", name: "Std 6", students: 18 },
-    { id: "c3", name: "Std 7", students: 24 },
-  ]
+export default async function AdminClassesPage() {
+  // Fetch live classes from Supabase (auto-seeds Std 5, 6, 7 if empty)
+  const classes = await getClasses()
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
@@ -24,9 +21,9 @@ export default function AdminClassesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {classes.map((cls) => (
             <Link key={cls.id} href={`/admin/${cls.id}`}>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98]">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer active:scale-[0.98]">
                 <h2 className="text-2xl font-bold text-gray-900">{cls.name}</h2>
-                <p className="text-gray-500 mt-2">{cls.students} Students</p>
+                <p className="text-gray-500 mt-2">Manage Class Details</p>
               </div>
             </Link>
           ))}
