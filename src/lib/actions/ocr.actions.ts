@@ -151,6 +151,10 @@ Output format must be EXACTLY:
       }
     }
 
+    if (!response) {
+      throw new Error("No response received from Gemini API")
+    }
+
     const responseText = response.response.text().trim()
 
     // Clean response text just in case Gemini wrapped it in a ```json block
