@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { ProgressChart } from "@/components/charts/ProgressChart"
-import Link from "next/link"
 
 interface Student {
   id: string
@@ -138,12 +137,6 @@ export function DashboardContent({
               ગુજ
             </button>
           </div>
-          <Link 
-            href={`/std/${student.classes?.name.toLowerCase().replace(" ", "-") || "std-7"}`} 
-            className="text-xs text-blue-600 font-bold border border-blue-100 bg-blue-50/50 hover:bg-blue-50 px-2.5 py-1.5 rounded-lg transition-colors"
-          >
-            {t.switch}
-          </Link>
         </div>
       </header>
 

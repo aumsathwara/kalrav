@@ -98,7 +98,17 @@ export default function ClassDashboardContent({
     }
   }
 
-  // 4. Handle Delete Confirmation
+  // 4. WhatsApp Share Student Dashboard
+  const handleShareWhatsApp = (student: Student) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : ""
+    const shareUrl = `${origin}/student/${student.id}`
+    const text = encodeURIComponent(
+      `📚 *Kalrav Classes Progress Report*\n\nDear Parent, view the detailed academic progress report, performance charts, and teacher notes for *${student.name}* here:\n${shareUrl}\n\n_Kalrav Classes Tuition Progress Tracker_`
+    )
+    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank")
+  }
+
+  // 5. Handle Delete Confirmation
   const triggerDeleteConfirm = (student: Student) => {
     setDeletingStudent(student)
     setShowConfirmDelete(true)
@@ -230,6 +240,12 @@ export default function ClassDashboardContent({
                     </div>
                     
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleShareWhatsApp(student)}
+                        className="text-gray-500 hover:text-green-600 hover:bg-green-50 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1"
+                      >
+                        📢 <span>Share</span>
+                      </button>
                       <button
                         onClick={() => handleOpenEdit(student)}
                         className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"

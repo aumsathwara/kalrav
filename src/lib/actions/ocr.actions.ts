@@ -62,27 +62,33 @@ export async function processOcrImage(testId: string, imageBase64: string) {
     const genAI = new GoogleGenerativeAI(apiKey)
     
     const ocrSchema = {
-      type: "array",
-      description: "List of extracted scores for students and subjects",
-      items: {
-        type: "object",
-        properties: {
-          student_id: {
-            type: "string",
-            description: "The unique student ID from the available students list"
-          },
-          subject_id: {
-            type: "string",
-            description: "The unique subject ID from the available subjects list"
-          },
-          obtained: {
-            type: "number",
-            nullable: true,
-            description: "The marks obtained by the student. If unreadable, missing, or blank, return null."
+      type: "object",
+      description: "Root object containing extracted student marks",
+      properties: {
+        marks: {
+          type: "array",
+          description: "List of extracted scores for students and subjects",
+          items: {
+            type: "object",
+            properties: {
+              student_id: {
+                type: "string",
+                description: "The unique student ID from the available students list"
+              },
+              subject_id: {
+                type: "string",
+                description: "The unique subject ID from the available subjects list"
+              },
+              obtained: {
+                type: "number",
+                description: "The marks obtained by the student. If unreadable, missing, or blank, return -1."
+              }
+            },
+            required: ["student_id", "subject_id", "obtained"]
           }
-        },
-        required: ["student_id", "subject_id", "obtained"]
-      }
+        }
+      },
+      required: ["marks"]
     }
 
     const model = genAI.getGenerativeModel({ 
@@ -122,9 +128,11 @@ Instructions:
 3. If a student/subject combination doesn't exist, omit it. If a score is unreadable or empty, set obtained to null.
 
 Output format must be EXACTLY:
-[
-  { "student_id": "UUID", "subject_id": "UUID", "obtained": number_or_null }
-]
+{
+  "marks": [
+    { "student_id": "UUID", "subject_id": "UUID", "obtained": number }
+  ]
+}
 `
 
     const response = await model.generateContent([prompt, imagePart])
@@ -132,7 +140,11 @@ Output format must be EXACTLY:
 
     // Clean response text just in case Gemini wrapped it in a ```json block
     const cleanedText = responseText.replace(/^```json\s*/i, "").replace(/```$/, "").trim()
-    const parsedMarks = JSON.parse(cleanedText)
+    const parsedData = JSON.parse(cleanedText)
+    const parsedMarks = (parsedData.marks || []).map((m: any) => ({
+      ...m,
+      obtained: m.obtained === -1 ? null : m.obtained // Convert fallback -1 to null
+    }))
 
     return { success: true, marks: parsedMarks }
 
