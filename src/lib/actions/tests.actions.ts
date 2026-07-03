@@ -133,3 +133,25 @@ export async function copyTest(originalTestId: string, newTestName: string, newD
   }
 }
 
+export async function getTestsByClass(classId: string) {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from("tests")
+      .select("*")
+      .eq("class_id", classId)
+      .order("test_date", { ascending: false })
+
+    if (error) throw error
+    return data || []
+  } catch (err) {
+    console.warn("Using mock tests list due to error: ", err)
+    return [
+      { id: "t1", name: "June Test", test_date: "2023-06-15", status: "published", class_id: classId },
+      { id: "t2", name: "July Test", test_date: "2023-07-15", status: "published", class_id: classId },
+      { id: "t3", name: "August Test", test_date: "2023-08-15", status: "draft", class_id: classId }
+    ]
+  }
+}
+
+

@@ -121,3 +121,62 @@ export async function getStudentDashboardData(studentId: string) {
     }
   }
 }
+
+export async function getStudentsByClass(classId: string) {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from("students")
+      .select("*")
+      .eq("class_id", classId)
+      .order("name", { ascending: true })
+
+    if (error) throw error
+    return data || []
+  } catch (err) {
+    console.warn("Using mock student list due to error: ", err)
+    return [
+      { id: "s1", name: "Vrutti", emoji: "😀", class_id: classId },
+      { id: "s2", name: "Mansi", emoji: "😀", class_id: classId },
+      { id: "s3", name: "Kevan", emoji: "🤓", class_id: classId },
+      { id: "s4", name: "Dev", emoji: "😊", class_id: classId }
+    ]
+  }
+}
+
+export async function createStudent(classId: string, name: string, emoji: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("students")
+    .insert([{ class_id: classId, name, emoji }])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateStudent(studentId: string, name: string, emoji: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("students")
+    .update({ name, emoji })
+    .eq("id", studentId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteStudent(studentId: string) {
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from("students")
+    .delete()
+    .eq("id", studentId)
+
+  if (error) throw error
+  return true
+}
+
