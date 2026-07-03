@@ -193,5 +193,44 @@ export async function getClasses() {
   }
 }
 
+export async function createClass(name: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("classes")
+    .insert([{ name }])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateClass(classId: string, name: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("classes")
+    .update({ name })
+    .eq("id", classId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteClass(classId: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("classes")
+    .update({ archived: true })
+    .eq("id", classId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+
 
 
