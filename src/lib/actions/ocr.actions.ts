@@ -92,7 +92,7 @@ export async function processOcrImage(testId: string, imageBase64: string) {
     }
 
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: ocrSchema as any
@@ -135,7 +135,22 @@ Output format must be EXACTLY:
 }
 `
 
-    const response = await model.generateContent([prompt, imagePart])
+    let response
+    let retries = 3
+    let delay = 1000
+    while (retries > 0) {
+      try {
+        response = await model.generateContent([prompt, imagePart])
+        break
+      } catch (apiError: any) {
+        console.warn(`Gemini API call failed. Retries remaining: ${retries - 1}. Error:`, apiError)
+        retries--
+        if (retries === 0) throw apiError
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        delay *= 2
+      }
+    }
+
     const responseText = response.response.text().trim()
 
     // Clean response text just in case Gemini wrapped it in a ```json block
