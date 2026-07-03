@@ -154,4 +154,44 @@ export async function getTestsByClass(classId: string) {
   }
 }
 
+export async function getClasses() {
+  try {
+    const supabase = createAdminClient()
+    const { data: classesData, error } = await supabase
+      .from("classes")
+      .select("*")
+      .eq("archived", false)
+      .order("created_at", { ascending: true })
+
+    if (error) throw error
+
+    let classes = classesData
+
+    // Auto-seed Std 5, 6, 7 if table is empty in live db
+    if (!classes || classes.length === 0) {
+      const { data: inserted, error: insertError } = await supabase
+        .from("classes")
+        .insert([
+          { name: "Std 5" },
+          { name: "Std 6" },
+          { name: "Std 7" }
+        ])
+        .select()
+
+      if (insertError) throw insertError
+      classes = inserted
+    }
+
+    return classes || []
+  } catch (err) {
+    console.warn("Using mock classes list due to error: ", err)
+    return [
+      { id: "00000000-0000-0000-0000-000000000005", name: "Std 5" },
+      { id: "00000000-0000-0000-0000-000000000006", name: "Std 6" },
+      { id: "00000000-0000-0000-0000-000000000007", name: "Std 7" }
+    ]
+  }
+}
+
+
 
