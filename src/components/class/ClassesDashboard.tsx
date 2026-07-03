@@ -119,7 +119,7 @@ export default function ClassesDashboard({ initialClasses }: ClassesDashboardPro
 
         {classes.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
-            No classes registered. Click "+ Add Class" to begin.
+            No classes registered. Click &quot;+ Add Class&quot; to begin.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">

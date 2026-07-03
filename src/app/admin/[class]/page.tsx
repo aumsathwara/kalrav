@@ -1,14 +1,15 @@
 import ClassDashboardContent from "@/components/class/ClassDashboardContent"
-import { getTestsByClass } from "@/lib/actions/tests.actions"
+import { getTestsByClass, getSubjectsByClass } from "@/lib/actions/tests.actions"
 import { getStudentsByClass } from "@/lib/actions/student.actions"
 import { createAdminClient } from "@/lib/supabase/server"
 
 export default async function AdminTestListPage({ params }: { params: Promise<{ class: string }> }) {
   const { class: classId } = await params
 
-  // 1. Fetch live tests & students for this standard standard
+  // 1. Fetch live tests, students & subjects for this standard class
   const tests = await getTestsByClass(classId)
   const students = await getStudentsByClass(classId)
+  const subjects = await getSubjectsByClass(classId)
 
   // 2. Fetch class name dynamically from DB
   let className = ""
@@ -45,6 +46,7 @@ export default async function AdminTestListPage({ params }: { params: Promise<{ 
       className={className}
       initialTests={formattedTests}
       initialStudents={students}
+      initialSubjects={subjects}
     />
   )
 }

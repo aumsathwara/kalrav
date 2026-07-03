@@ -140,6 +140,7 @@ export async function getTestsByClass(classId: string) {
       .from("tests")
       .select("*")
       .eq("class_id", classId)
+      .neq("status", "archived")
       .order("test_date", { ascending: false })
 
     if (error) throw error
@@ -224,6 +225,102 @@ export async function deleteClass(classId: string) {
     .from("classes")
     .update({ archived: true })
     .eq("id", classId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function createTest(classId: string, name: string, testDate: string, status: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("tests")
+    .insert([{ class_id: classId, name, test_date: testDate, status }])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateTest(testId: string, name: string, testDate: string, status: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("tests")
+    .update({ name, test_date: testDate, status })
+    .eq("id", testId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteTest(testId: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("tests")
+    .update({ status: "archived" })
+    .eq("id", testId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function getSubjectsByClass(classId: string) {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from("subjects")
+      .select("*")
+      .eq("class_id", classId)
+      .eq("archived", false)
+      .order("display_order", { ascending: true })
+
+    if (error) throw error
+    return data || []
+  } catch (err) {
+    console.warn("Using mock subjects list due to error: ", err)
+    return [
+      { id: "sub1", name: "English" },
+      { id: "sub2", name: "Maths" },
+      { id: "sub3", name: "Science" }
+    ]
+  }
+}
+
+export async function createSubject(classId: string, name: string) {
+  const supabase = createAdminClient()
+  
+  // Find highest display_order to append
+  const { data: existing } = await supabase
+    .from("subjects")
+    .select("display_order")
+    .eq("class_id", classId)
+    .order("display_order", { ascending: false })
+    .limit(1)
+
+  const nextOrder = existing && existing.length > 0 ? existing[0].display_order + 1 : 1
+
+  const { data, error } = await supabase
+    .from("subjects")
+    .insert([{ class_id: classId, name, display_order: nextOrder }])
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteSubject(subjectId: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("subjects")
+    .update({ archived: true })
+    .eq("id", subjectId)
     .select()
     .single()
 

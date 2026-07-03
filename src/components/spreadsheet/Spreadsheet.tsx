@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { updateMark } from "@/lib/actions/marks.actions"
+import { updateMark, updateSubjectTotalMarks } from "@/lib/actions/marks.actions"
 
 type Subject = { id: string; name: string }
 type Student = { id: string; name: string; emoji: string }
@@ -17,6 +17,7 @@ interface SpreadsheetProps {
 
 export default function Spreadsheet({ testId, subjects, students, initialMarks, totals }: SpreadsheetProps) {
   const [marks, setMarks] = useState<Mark[]>(initialMarks)
+  const [localTotals, setLocalTotals] = useState<Record<string, number>>(totals)
   const [editingCell, setEditingCell] = useState<{ studentId: string; subjectId: string } | null>(null)
   const [editValue, setEditValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -46,7 +47,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
     setIsSaving(true)
     const { studentId, subjectId } = editingCell
     const obtained = editValue === "" ? null : parseFloat(editValue)
-    const total = totals[subjectId]
+    const total = localTotals[subjectId]
 
     if (obtained !== null && obtained > total) {
       alert("Obtained cannot exceed Total")
@@ -87,6 +88,34 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
     }
   }
 
+  const handleEditTotal = async (subjectId: string, subjectName: string, currentTotal: number) => {
+    const val = prompt(`Set total marks for ${subjectName} in this test:`, currentTotal.toString())
+    if (val === null) return
+    const parsed = parseFloat(val)
+    if (isNaN(parsed) || parsed <= 0) {
+      alert("Please enter a valid positive number.")
+      return
+    }
+
+    try {
+      await updateSubjectTotalMarks(testId, subjectId, parsed)
+      
+      // Update localTotals state
+      setLocalTotals((prev) => ({
+        ...prev,
+        [subjectId]: parsed
+      }))
+
+      // Update local marks array totals
+      setMarks((prev) => prev.map((m) => m.subject_id === subjectId ? { ...m, total: parsed } : m))
+      
+      alert("Total marks updated successfully. ✓")
+    } catch (err) {
+      console.error(err)
+      alert("Failed to update total marks. Verify database connections.")
+    }
+  }
+
   return (
     <div className="relative w-full overflow-hidden flex flex-col h-full bg-white text-black">
       {saveSuccess && (
@@ -103,9 +132,21 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                 Student
               </th>
               {subjects.map((subject) => (
-                <th key={subject.id} className="p-4 border-b border-r font-medium text-gray-600 min-w-[120px]">
-                  {subject.name}
-                  <div className="text-xs text-gray-400 font-normal">Out of {totals[subject.id]}</div>
+                <th key={subject.id} className="p-4 border-b border-r font-medium text-gray-600 min-w-[155px] group/header relative select-none">
+                  <div className="flex items-center justify-between gap-1">
+                    <span>{subject.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditTotal(subject.id, subject.name, localTotals[subject.id] || 100)
+                      }}
+                      className="opacity-0 group-hover/header:opacity-100 text-[10px] text-blue-600 hover:text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded transition-all font-bold ml-2"
+                      title="Edit total marks"
+                    >
+                      ✏️ Edit Total
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-400 font-normal mt-0.5">Out of {localTotals[subject.id] || 100}</div>
                 </th>
               ))}
             </tr>
