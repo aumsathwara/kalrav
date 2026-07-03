@@ -1,0 +1,143 @@
+"use server"
+
+import { GoogleGenerativeAI } from "@google/generative-ai"
+import { createAdminClient } from "../supabase/server"
+
+export async function processOcrImage(testId: string, imageBase64: string) {
+  try {
+    const supabase = createAdminClient()
+
+    // 1. Get test details to find class_id
+    const { data: test, error: testError } = await supabase
+      .from("tests")
+      .select("class_id")
+      .eq("id", testId)
+      .single()
+
+    if (testError || !test) throw new Error("Test not found")
+
+    // 2. Get students in this class
+    const { data: students, error: studentsError } = await supabase
+      .from("students")
+      .select("id, name")
+      .eq("class_id", test.class_id)
+      .neq("status", "archived")
+
+    // 3. Get subjects in this class
+    const { data: subjects, error: subjectsError } = await supabase
+      .from("subjects")
+      .select("id, name")
+      .eq("class_id", test.class_id)
+      .eq("archived", false)
+
+    if (studentsError || subjectsError) {
+      throw new Error("Failed to load students or subjects for OCR mapping")
+    }
+
+    const studentsList = students?.map(s => `- ID: "${s.id}", Name: "${s.name}"`).join("\n") || ""
+    const subjectsList = subjects?.map(s => `- ID: "${s.id}", Name: "${s.name}"`).join("\n") || ""
+
+    // 4. Set up Gemini Client
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey || apiKey === "mock-gemini-key") {
+      // Mock parsing for development if no key is provided
+      console.warn("No real GEMINI_API_KEY found, using mock parser")
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      
+      // Generate some mock marks
+      const mockResult = []
+      for (const s of students || []) {
+        for (const sub of subjects || []) {
+          mockResult.push({
+            student_id: s.id,
+            subject_id: sub.id,
+            obtained: Math.floor(Math.random() * 20) + 10,
+            total: 30
+          })
+        }
+      }
+      return { success: true, marks: mockResult }
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey)
+    
+    const ocrSchema = {
+      type: "array",
+      description: "List of extracted scores for students and subjects",
+      items: {
+        type: "object",
+        properties: {
+          student_id: {
+            type: "string",
+            description: "The unique student ID from the available students list"
+          },
+          subject_id: {
+            type: "string",
+            description: "The unique subject ID from the available subjects list"
+          },
+          obtained: {
+            type: "number",
+            nullable: true,
+            description: "The marks obtained by the student. If unreadable, missing, or blank, return null."
+          }
+        },
+        required: ["student_id", "subject_id", "obtained"]
+      }
+    }
+
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: ocrSchema as any
+      }
+    })
+
+    // Extract mime type and base64 data
+    const match = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (!match) throw new Error("Invalid image format")
+    const mimeType = match[1]
+    const base64Data = match[2]
+
+    const imagePart = {
+      inlineData: {
+        data: base64Data,
+        mimeType: mimeType
+      }
+    }
+
+    const prompt = `
+You are an expert grading assistant. Your task is to extract handwritten student test scores from the provided image.
+Match the names and subjects in the image as closely as possible to the lists below.
+
+Available Students:
+${studentsList}
+
+Available Subjects:
+${subjectsList}
+
+Instructions:
+1. Extract the scores for each student for each subject.
+2. Return ONLY a valid JSON array of objects. No markdown, no "json" wrappers, no other text.
+3. If a student/subject combination doesn't exist, omit it. If a score is unreadable or empty, set obtained to null.
+
+Output format must be EXACTLY:
+[
+  { "student_id": "UUID", "subject_id": "UUID", "obtained": number_or_null }
+]
+`
+
+    const response = await model.generateContent([prompt, imagePart])
+    const responseText = response.response.text().trim()
+
+    // Clean response text just in case Gemini wrapped it in a ```json block
+    const cleanedText = responseText.replace(/^```json\s*/i, "").replace(/```$/, "").trim()
+    const parsedMarks = JSON.parse(cleanedText)
+
+    return { success: true, marks: parsedMarks }
+
+  } catch (error) {
+    console.error("OCR Image processing failed:", error)
+    throw new Error("OCR Processing failed")
+  }
+}
