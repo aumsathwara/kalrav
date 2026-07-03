@@ -10,7 +10,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="p-6 pb-2 text-center mt-12">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Tuition Name</h1>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Kalrav Classes</h1>
         <p className="text-gray-500 mt-2">Track student progress easily</p>
       </header>
 
