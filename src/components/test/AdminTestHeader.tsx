@@ -397,9 +397,42 @@ _Kalrav Classes Tuition Progress Tracker_`
     }
   }
 
-  const handleWhatsAppShare = () => {
-    const text = encodeURIComponent(getShareText())
-    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank")
+  const handleWhatsAppShare = async () => {
+    const text = getShareText()
+    
+    // 1. Try sharing using the native Web Share API (supported on mobile safari/chrome)
+    if (navigator.share && navigator.canShare) {
+      try {
+        const blob = await generateChartImageBlob()
+        const file = new File([blob], `${testName.replace(/\s+/g, "_")}_chart.png`, { type: "image/png" })
+        
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `${testName} Results`,
+            text: text,
+            files: [file]
+          })
+          setShowShareModal(false)
+          return
+        }
+      } catch (err) {
+        console.warn("Native file sharing failed, falling back to redirect link", err)
+      }
+    }
+    
+    // 2. Desktop Fallback: Automatically copy image to clipboard & redirect to WhatsApp Web
+    try {
+      const blob = await generateChartImageBlob()
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob })
+      ])
+      alert("Chart image copied to clipboard! Opening WhatsApp... Just press Paste (Ctrl+V) in the chat window to attach the chart. ✓")
+    } catch (e) {
+      console.warn("Failed to copy image to clipboard dynamically on fallback", e)
+    }
+
+    const encodedText = encodeURIComponent(text)
+    window.open(`https://api.whatsapp.com/send?text=${encodedText}`, "_blank")
     setShowShareModal(false)
   }
 
