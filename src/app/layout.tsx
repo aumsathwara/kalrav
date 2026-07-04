@@ -4,6 +4,9 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Tuition Progress Tracker",
   description: "Track student test progress with analytics and AI insights.",
+  icons: {
+    icon: "/logo.jpeg"
+  }
 }
 
 export default function RootLayout({

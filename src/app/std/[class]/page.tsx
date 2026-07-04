@@ -1,46 +1,83 @@
 import Link from "next/link"
 import { getStudentsByClass } from "@/lib/actions/student.actions"
 import { createAdminClient } from "@/lib/supabase/server"
+import { ClassTestDashboard } from "@/components/test/ClassTestDashboard"
+import { translateClassNameToGujarati } from "@/lib/utils"
 
-export default async function StudentSelectionPage({ params }: { params: Promise<{ class: string }> }) {
-  const { class: classId } = await params
+export default async function StudentOrTestPage({ params }: { params: Promise<{ class: string }> }) {
+  const { class: id } = await params
+  const supabase = createAdminClient()
 
-  // 1. Fetch live students for this class standard
-  const students = await getStudentsByClass(classId)
+  // 1. Attempt to resolve "id" as a test ID
+  const { data: test } = await supabase
+    .from("tests")
+    .select("*, classes(name)")
+    .eq("id", id)
+    .maybeSingle()
 
-  // 2. Fetch class name dynamically for header
+  if (test) {
+    // 2. We found a test! Fetch students, subjects and marks for this test
+    const { data: students } = await supabase
+      .from("students")
+      .select("id, name, emoji")
+      .eq("class_id", test.class_id)
+      .neq("status", "archived")
+
+    const { data: subjects } = await supabase
+      .from("subjects")
+      .select("id, name")
+      .eq("class_id", test.class_id)
+      .eq("archived", false)
+
+    const { data: marks } = await supabase
+      .from("marks")
+      .select("student_id, subject_id, obtained, total")
+      .eq("test_id", test.id)
+
+    // Render the Class Test Results Dashboard component
+    return (
+      <ClassTestDashboard
+        test={test}
+        students={students || []}
+        subjects={subjects || []}
+        marks={marks || []}
+      />
+    )
+  }
+
+  // 3. Fallback: Treat "id" as a Class ID (Original StudentSelectionPage behavior)
+  const students = await getStudentsByClass(id)
+
   let className = ""
   try {
-    const supabase = createAdminClient()
     const { data } = await supabase
       .from("classes")
       .select("name")
-      .eq("id", classId)
+      .eq("id", id)
       .single()
     if (data) {
       className = data.name
     }
   } catch (err) {
     console.warn("Failed to fetch class name from DB: ", err)
-    className = classId === "00000000-0000-0000-0000-000000000005" ? "Std 5" 
-              : classId === "00000000-0000-0000-0000-000000000006" ? "Std 6" 
-              : classId === "00000000-0000-0000-0000-000000000007" ? "Std 7" 
-              : classId.replace("-", " ")
+    className = id === "00000000-0000-0000-0000-000000000005" ? "Std 5" 
+              : id === "00000000-0000-0000-0000-000000000006" ? "Std 6" 
+              : id === "00000000-0000-0000-0000-000000000007" ? "Std 7" 
+              : id.replace("-", " ")
   }
 
-  // Translating class name to Gujarati for Gujarai standard view if fallback
-  let displayName = className
-  if (className.toLowerCase() === "std 5") displayName = "Std 5 / ધોરણ ૫"
-  else if (className.toLowerCase() === "std 6") displayName = "Std 6 / ધોરણ ૬"
-  else if (className.toLowerCase() === "std 7") displayName = "Std 7 / ધોરણ ૭"
+  const displayName = `${className} / ${translateClassNameToGujarati(className)}`
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white p-5 shadow-sm sticky top-0 z-10 flex items-center gap-3">
-        <Link href="/" className="text-gray-500 hover:text-gray-800">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900 capitalize">{displayName}</h1>
+      <header className="bg-white p-5 shadow-sm sticky top-0 z-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-gray-500 hover:text-gray-800">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </Link>
+          <h1 className="text-xl font-bold text-gray-900 capitalize">{displayName}</h1>
+        </div>
+        <img src="/logo.jpeg" alt="Kalrav Classes Logo" className="w-9 h-9 rounded-full object-cover shadow-sm border border-gray-100" />
       </header>
 
       <main className="flex-1 px-4 py-6 max-w-md mx-auto w-full">

@@ -1,6 +1,7 @@
 "use server"
 
 import { createAdminClient } from "../supabase/server"
+import { sortClassesNaturally } from "../utils"
 
 export async function getTestSpreadsheetData(testId: string) {
   try {
@@ -183,14 +184,14 @@ export async function getClasses() {
       classes = inserted
     }
 
-    return classes || []
+    return sortClassesNaturally(classes || [])
   } catch (err) {
     console.warn("Using mock classes list due to error: ", err)
-    return [
+    return sortClassesNaturally([
       { id: "00000000-0000-0000-0000-000000000005", name: "Std 5" },
       { id: "00000000-0000-0000-0000-000000000006", name: "Std 6" },
       { id: "00000000-0000-0000-0000-000000000007", name: "Std 7" }
-    ]
+    ])
   }
 }
 

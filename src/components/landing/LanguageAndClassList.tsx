@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { translateClassNameToGujarati } from "@/lib/utils"
 
 interface ClassItem {
   id: string
@@ -17,7 +18,14 @@ export default function LanguageAndClassList({ initialClasses }: LanguageAndClas
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="p-6 pb-2 text-center mt-12">
+      <header className="p-6 pb-2 text-center mt-12 flex flex-col items-center">
+        <div className="mb-4">
+          <img 
+            src="/logo.jpeg" 
+            alt="Kalrav Classes Logo" 
+            className="w-24 h-24 rounded-full object-cover shadow-md border-2 border-white"
+          />
+        </div>
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
           {lang === "en" ? "Kalrav Classes" : "કલરવ ક્લાસીસ"}
         </h1>
@@ -54,11 +62,7 @@ export default function LanguageAndClassList({ initialClasses }: LanguageAndClas
           </h2>
           <div className="flex flex-col gap-3">
             {initialClasses.map((cls) => {
-              // Gujarati transliteration mapping
-              let nameGu = cls.name
-              if (cls.name.toLowerCase() === "std 5") nameGu = "ધોરણ ૫"
-              else if (cls.name.toLowerCase() === "std 6") nameGu = "ધોરણ ૬"
-              else if (cls.name.toLowerCase() === "std 7") nameGu = "ધોરણ ૭"
+              const nameGu = translateClassNameToGujarati(cls.name)
 
               return (
                 <Link key={cls.id} href={`/std/${cls.id}`}>

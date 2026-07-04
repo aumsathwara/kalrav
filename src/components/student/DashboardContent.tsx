@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { ProgressChart } from "@/components/charts/ProgressChart"
+import { translateClassNameToGujarati } from "@/lib/utils"
 
 interface Student {
   id: string
@@ -112,12 +113,18 @@ export function DashboardContent({
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md px-5 py-4 shadow-sm sticky top-0 z-40 border-b flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <img 
+            src="/logo.jpeg" 
+            alt="Kalrav Classes Logo" 
+            className="w-10 h-10 rounded-full object-cover shadow-sm border border-gray-100"
+          />
+          <div className="h-8 w-px bg-gray-200"></div>
           <span className="text-3xl bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center shadow-inner">
             {student.emoji}
           </span>
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-tight">{student.name}</h1>
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">{student.classes?.name}</p>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">{lang === "en" ? (student.classes?.name || "") : translateClassNameToGujarati(student.classes?.name || "")}</p>
           </div>
         </div>
         
