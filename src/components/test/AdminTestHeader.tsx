@@ -83,13 +83,17 @@ export function AdminTestHeader({
         try {
           const res = await processOcrImage(testId, base64data)
           if (res.success && res.marks) {
-            // Map parsed marks to our database subject structures and total marks
-            const formattedMarks: Mark[] = res.marks.map((m: any) => ({
-              student_id: m.student_id,
-              subject_id: m.subject_id,
-              obtained: m.obtained !== null ? Number(m.obtained) : null,
-              total: m.total || 30 // Fallback to 30 marks total
-            }))
+            const formattedMarks: Mark[] = res.marks.map((m: any) => {
+              const existingMark = initialMarks.find(
+                (im) => im.student_id === m.student_id && im.subject_id === m.subject_id
+              )
+              return {
+                student_id: m.student_id,
+                subject_id: m.subject_id,
+                obtained: m.obtained !== null ? Number(m.obtained) : null,
+                total: existingMark ? existingMark.total : (m.total || 100)
+              }
+            })
             setOcrResults(formattedMarks)
           } else {
             setOcrError("No marks were parsed from the image.")

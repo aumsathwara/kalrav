@@ -40,10 +40,9 @@ export async function processOcrImage(testId: string, imageBase64: string) {
     // 4. Set up Gemini Client
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey || apiKey === "mock-gemini-key") {
-      // Mock parsing for development if no key is provided
       console.warn("No real GEMINI_API_KEY found, using mock parser")
       await new Promise((resolve) => setTimeout(resolve, 2000))
-      
+
       // Generate some mock marks
       const mockResult = []
       for (const s of students || []) {
@@ -60,57 +59,12 @@ export async function processOcrImage(testId: string, imageBase64: string) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    
-    const ocrSchema = {
-      type: "object",
-      description: "Root object containing extracted student marks",
-      properties: {
-        marks: {
-          type: "array",
-          description: "List of extracted scores for students and subjects",
-          items: {
-            type: "object",
-            properties: {
-              student_id: {
-                type: "string",
-                description: "The unique student ID from the available students list"
-              },
-              subject_id: {
-                type: "string",
-                description: "The unique subject ID from the available subjects list"
-              },
-              obtained: {
-                type: "number",
-                description: "The marks obtained by the student. If unreadable, missing, or blank, return -1."
-              }
-            },
-            required: ["student_id", "subject_id", "obtained"]
-          }
-        }
-      },
-      required: ["marks"]
-    }
-
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: ocrSchema as any
-      }
-    })
 
     // Extract mime type and base64 data
     const match = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/)
     if (!match) throw new Error("Invalid image format")
     const mimeType = match[1]
     const base64Data = match[2]
-
-    const imagePart = {
-      inlineData: {
-        data: base64Data,
-        mimeType: mimeType
-      }
-    }
 
     const prompt = `
 You are an expert grading assistant. Your task is to extract handwritten student test scores from the provided image.
@@ -124,10 +78,10 @@ ${subjectsList}
 
 Instructions:
 1. Extract the scores for each student for each subject.
-2. Return ONLY a valid JSON array of objects. No markdown, no "json" wrappers, no other text.
-3. If a student/subject combination doesn't exist, omit it. If a score is unreadable or empty, set obtained to null.
+2. Return ONLY a valid JSON object matching the output format below. No markdown, no "json" wrappers, no other text.
+3. If a student/subject combination doesn't exist, omit it. If a score is unreadable or empty, set obtained to -1.
 
-Output format must be EXACTLY:
+Output format MUST be EXACTLY:
 {
   "marks": [
     { "student_id": "UUID", "subject_id": "UUID", "obtained": number }
@@ -135,29 +89,70 @@ Output format must be EXACTLY:
 }
 `
 
-    let response
+    let responseText = ""
     let retries = 3
     let delay = 1000
-    while (retries > 0) {
+    const modelsToTry = [
+      "gemini-2.0-flash",
+      "gemini-2.5-flash"
+    ]
+    let modelIndex = 0
+
+    while (retries > 0 && modelIndex < modelsToTry.length) {
+      const currentModelName = modelsToTry[modelIndex]
       try {
-        response = await model.generateContent([prompt, imagePart])
-        break
+        console.log(`[OCR] Requesting transcription using native Gemini: ${currentModelName}`)
+
+        const model = genAI.getGenerativeModel({
+          model: currentModelName,
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+
+        const result = await model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: mimeType
+            }
+          }
+        ])
+
+        responseText = result.response.text() || ""
+        if (responseText) {
+          console.log(`[OCR] Success with native Gemini model: ${currentModelName}`)
+          break
+        }
       } catch (apiError: any) {
-        console.warn(`Gemini API call failed. Retries remaining: ${retries - 1}. Error:`, apiError)
+        console.warn(`[OCR] Model ${currentModelName} failed. Error:`, apiError)
+
+        const isRateLimit = apiError?.status === 429 ||
+          apiError?.message?.includes("429") ||
+          apiError?.message?.includes("ResourceHasExhausted") ||
+          apiError?.message?.includes("quota")
+
+        if (isRateLimit && modelIndex < modelsToTry.length - 1) {
+          console.warn(`[OCR] Rate-limited on ${currentModelName}. Falling back to next model...`)
+          modelIndex++
+          retries = 3
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          continue
+        }
+
         retries--
-        if (retries === 0) throw apiError
+        if (retries === 0 && modelIndex === modelsToTry.length - 1) throw apiError
         await new Promise((resolve) => setTimeout(resolve, delay))
         delay *= 2
       }
     }
 
-    if (!response) {
+    if (!responseText) {
       throw new Error("No response received from Gemini API")
     }
 
-    const responseText = response.response.text().trim()
-
-    // Clean response text just in case Gemini wrapped it in a ```json block
+    // Clean response text just in case model wrapped it in markdown json block
     const cleanedText = responseText.replace(/^```json\s*/i, "").replace(/```$/, "").trim()
     const parsedData = JSON.parse(cleanedText)
     const parsedMarks = (parsedData.marks || []).map((m: any) => ({

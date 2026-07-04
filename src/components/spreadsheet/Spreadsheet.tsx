@@ -31,6 +31,15 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
     }
   }, [editingCell])
 
+  // Synchronize local states when props update from the server (e.g. after OCR batch save)
+  useEffect(() => {
+    setMarks(initialMarks)
+  }, [initialMarks])
+
+  useEffect(() => {
+    setLocalTotals(totals)
+  }, [totals])
+
   const getMark = (studentId: string, subjectId: string) => {
     return marks.find((m) => m.student_id === studentId && m.subject_id === subjectId)
   }
