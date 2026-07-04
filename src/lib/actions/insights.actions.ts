@@ -28,6 +28,13 @@ export async function generateTestInsights(testId: string) {
       return { success: false, error: "No marks recorded yet for this test" }
     }
 
+    // 2b. Fetch subject notes context
+    const { data: notes } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("test_id", testId)
+      .eq("type", "subject")
+
     // 3. Compute aggregations for the prompt
     const totalMarks = marks.reduce((sum, m) => sum + (m.obtained || 0), 0)
     const totalMax = marks.reduce((sum, m) => sum + m.total, 0)
@@ -60,10 +67,23 @@ export async function generateTestInsights(testId: string) {
       return `- ${s.name}: Average ${avg.toFixed(1)}%`
     }).join("\n")
 
-    const studentsSummary = Object.values(studentStats).map(s => {
-      const score = s.totalMax > 0 ? (s.totalObtained / s.totalMax) * 100 : 0
-      return `- ${s.name}: ${score.toFixed(1)}%`
-    }).join("\n")
+    // Compile detailed student percentage performance + feedback notes
+    const studentPerformanceDetails = Object.keys(studentStats).map(studentId => {
+      const s = studentStats[studentId]
+      const studentMarks = marks.filter(m => m.student_id === studentId)
+      const validMarks = studentMarks.filter(m => m.obtained !== null)
+      
+      const subjectDetails = validMarks.map(m => {
+        const subName = (m.subjects as any)?.name || "Unknown"
+        const percentage = m.total > 0 ? (Number(m.obtained) / Number(m.total)) * 100 : 0
+        const matchingNote = notes?.find(n => n.student_id === studentId && n.subject_id === m.subject_id)
+        const noteText = matchingNote ? ` (Teacher note: "${matchingNote.content}")` : ""
+        return `    - ${subName}: ${percentage.toFixed(1)}%${noteText}`
+      }).join("\n")
+      
+      const overall = s.totalMax > 0 ? (s.totalObtained / s.totalMax) * 100 : 0
+      return `- Student: ${s.name} (Overall percentage: ${overall.toFixed(1)}%):\n${subjectDetails}`
+    }).join("\n\n")
 
     // 4. Call Gemini
     const apiKey = process.env.GEMINI_API_KEY
@@ -73,16 +93,16 @@ export async function generateTestInsights(testId: string) {
 
       const mockContent = `
 💡 **Class Strengths**
-- The class performed exceptionally well in Science, showing a clear grasp of foundational concepts.
-- Top performers include Vrutti who achieved solid marks across all areas.
+- Strong scores overall in standard ${test.classes?.name || "class"}.
+- Many students demonstrated consistent understanding of core concepts.
 
 ⚠️ **Areas of Improvement**
-- Maths scores are slightly lower on average, specifically with algebra problems where several students lost marks.
-- Dev and Mansi require extra support in English sentence structures.
+- Review subject specific concepts where students showed lower averages.
+- Target guidance for individual concerns highlighted in notes.
 
 📝 **Actionable Recommendations**
-1. Conduct a remedial session focusing on Maths formula applications.
-2. Provide reading assignments to students scoring below 75% in English.
+1. Review test questions with low class averages.
+2. Coordinate individual feedback loops for subjects with custom teacher notes.
 `
       // Save mock insights
       await supabase.from("ai_insights").upsert({
@@ -102,17 +122,17 @@ export async function generateTestInsights(testId: string) {
       properties: {
         strengths: {
           type: "array",
-          description: "List of key areas or subjects where the class/students excelled",
+          description: "List of key areas or subjects where the class/students excelled based on scores and positive feedback",
           items: { type: "string" }
         },
         improvements: {
           type: "array",
-          description: "List of areas or concepts needing focus, or specific students needing help",
+          description: "List of areas needing focus, topics needing review, or specific students requiring support based on scores and teacher notes",
           items: { type: "string" }
         },
         recommendations: {
           type: "array",
-          description: "Concrete, actionable, simple steps the teacher can execute next",
+          description: "Concrete, actionable, simple steps the teacher can execute next to address issues raised in scores and notes",
           items: { type: "string" }
         }
       },
@@ -128,21 +148,22 @@ export async function generateTestInsights(testId: string) {
     })
 
     const prompt = `
-You are an expert educational data analyst. You are analyzing test results for a class.
+You are an expert educational data analyst. You are analyzing test results and teacher comments/feedback for a class.
 Test Name: ${test.name}
-Class: ${test.classes?.name || "Unknown"}
+Class Standard: ${test.classes?.name || "Unknown"}
 Class Average: ${classAverage.toFixed(1)}%
 
 Subject Breakdown:
 ${subjectsSummary}
 
-Student Scores:
-${studentsSummary}
+Detailed Student Performance (obtained percentages & specific teacher feedback notes):
+${studentPerformanceDetails}
 
 Instructions:
 1. Provide a professional and constructive educational analysis of this test's results.
 2. Structure the output into strengths, improvements, and actionable recommendations arrays.
-3. Keep the language simple, encouraging, and clear.
+3. Review and integrate the notes context (e.g. if a teacher noted a student "needs practice in spelling" or "excellent at geometry", use this context directly to shape the class areas of improvement and recommendations).
+4. Keep the language simple, encouraging, and clear.
 `
 
     const response = await model.generateContent(prompt)
@@ -180,16 +201,16 @@ ${parsedData.recommendations.map((s: string, idx: number) => `${idx + 1}. ${s}`)
     
     const mockContent = `
 💡 **Class Strengths**
-- The class performed exceptionally well in Science, showing a clear grasp of foundational concepts.
-- Top performers include Vrutti who achieved solid marks across all areas.
+- Strong scores overall in class standard standard.
+- Many students demonstrated consistent understanding of core concepts.
 
 ⚠️ **Areas of Improvement**
-- Maths scores are slightly lower on average, specifically with algebra problems where several students lost marks.
-- Dev and Mansi require extra support in English sentence structures.
+- Review subject specific concepts where students showed lower averages.
+- Target guidance for individual concerns highlighted in notes.
 
 📝 **Actionable Recommendations**
-1. Conduct a remedial session focusing on Maths formula applications.
-2. Provide reading assignments to students scoring below 75% in English.
+1. Review test questions with low class averages.
+2. Coordinate individual feedback loops for subjects with custom teacher notes.
 `
     return { success: true, insights: mockContent.trim() }
   }
