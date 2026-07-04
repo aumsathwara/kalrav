@@ -20,50 +20,58 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
   const [localTotals, setLocalTotals] = useState<Record<string, number>>(totals)
   const [editingCell, setEditingCell] = useState<{ studentId: string; subjectId: string } | null>(null)
   const [editValue, setEditValue] = useState<string>("")
+  const [editTotalValue, setEditTotalValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
-
+ 
   // Auto-focus input when editing starts
   useEffect(() => {
     if (editingCell && inputRef.current) {
       inputRef.current.focus()
     }
   }, [editingCell])
-
+ 
   // Synchronize local states when props update from the server (e.g. after OCR batch save)
   useEffect(() => {
     setMarks(initialMarks)
   }, [initialMarks])
-
+ 
   useEffect(() => {
     setLocalTotals(totals)
   }, [totals])
-
+ 
   const getMark = (studentId: string, subjectId: string) => {
     return marks.find((m) => m.student_id === studentId && m.subject_id === subjectId)
   }
-
+ 
   const handleCellClick = (studentId: string, subjectId: string) => {
     const mark = getMark(studentId, subjectId)
     setEditValue(mark?.obtained !== null && mark?.obtained !== undefined ? mark.obtained.toString() : "")
+    setEditTotalValue(mark?.total !== null && mark?.total !== undefined ? mark.total.toString() : (localTotals[subjectId] || 30).toString())
     setEditingCell({ studentId, subjectId })
   }
-
+ 
   const handleSave = async () => {
     if (!editingCell) return
-
+ 
     setIsSaving(true)
     const { studentId, subjectId } = editingCell
     const obtained = editValue === "" ? null : parseFloat(editValue)
-    const total = localTotals[subjectId]
+    const total = parseFloat(editTotalValue)
 
+    if (isNaN(total) || total <= 0) {
+      alert("Total marks must be a positive number")
+      setIsSaving(false)
+      return
+    }
+ 
     if (obtained !== null && obtained > total) {
       alert("Obtained cannot exceed Total")
       setIsSaving(false)
       return
     }
-
+ 
     try {
       await updateMark(testId, studentId, subjectId, obtained, total)
       
@@ -71,7 +79,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
         const index = prev.findIndex((m) => m.student_id === studentId && m.subject_id === subjectId)
         if (index >= 0) {
           const newMarks = [...prev]
-          newMarks[index] = { ...newMarks[index], obtained }
+          newMarks[index] = { ...newMarks[index], obtained, total }
           return newMarks
         } else {
           return [...prev, { student_id: studentId, subject_id: subjectId, obtained, total }]
@@ -179,9 +187,12 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                     >
                       <div className="w-full h-full p-4 min-h-[64px] flex items-center justify-center">
                         {isEditing ? (
-                          <div className="absolute inset-0 z-30 bg-white shadow-xl rounded-lg p-3 m-1 border flex flex-col gap-2">
-                            <div className="flex gap-2 items-center">
-                              <span className="text-sm font-medium text-gray-500">Obtained:</span>
+                          <div 
+                            className="absolute z-30 bg-white shadow-2xl rounded-2xl p-3 border flex flex-col gap-2.5 min-w-[190px] -left-4 -top-14 text-black text-left"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-gray-500">Obtained:</span>
                               <input
                                 ref={inputRef}
                                 type="number"
@@ -189,17 +200,29 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                className="w-full bg-gray-100 p-2 rounded outline-none text-lg font-medium"
+                                className="w-20 bg-gray-100 p-1.5 rounded outline-none text-sm font-bold text-right"
                                 disabled={isSaving}
                               />
                             </div>
-                            <div className="flex gap-2 justify-end mt-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-gray-500">Total:</span>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                value={editTotalValue}
+                                onChange={(e) => setEditTotalValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="w-20 bg-gray-100 p-1.5 rounded outline-none text-sm font-bold text-right"
+                                disabled={isSaving}
+                              />
+                            </div>
+                            <div className="flex gap-2 justify-end mt-0.5">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setEditingCell(null)
                                 }}
-                                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded"
+                                className="px-2.5 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded font-semibold transition-colors"
                                 disabled={isSaving}
                               >
                                 Cancel
@@ -209,7 +232,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                                   e.stopPropagation()
                                   handleSave()
                                 }}
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded font-medium"
+                                className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors"
                                 disabled={isSaving}
                               >
                                 {isSaving ? "..." : "Save"}
@@ -223,7 +246,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                             ) : (
                               <span className="text-gray-300">-</span>
                             )}
-                            <span className="text-gray-400 text-sm ml-1">/ {totals[subject.id]}</span>
+                            <span className="text-gray-400 text-sm ml-1">/ {mark?.total !== undefined && mark?.total !== null ? mark.total : (localTotals[subject.id] || 30)}</span>
                           </div>
                         )}
                       </div>
