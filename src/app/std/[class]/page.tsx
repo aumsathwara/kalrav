@@ -16,23 +16,27 @@ export default async function StudentOrTestPage({ params }: { params: Promise<{ 
     .maybeSingle()
 
   if (test) {
-    // 2. We found a test! Fetch students, subjects and marks for this test
-    const { data: students } = await supabase
-      .from("students")
-      .select("id, name, emoji")
-      .eq("class_id", test.class_id)
-      .neq("status", "archived")
+    // 2. We found a test! Fetch students, subjects and marks for this test in parallel
+    const [studentsRes, subjectsRes, marksRes] = await Promise.all([
+      supabase
+        .from("students")
+        .select("id, name, emoji")
+        .eq("class_id", test.class_id)
+        .neq("status", "archived"),
+      supabase
+        .from("subjects")
+        .select("id, name")
+        .eq("class_id", test.class_id)
+        .eq("archived", false),
+      supabase
+        .from("marks")
+        .select("student_id, subject_id, obtained, total")
+        .eq("test_id", test.id)
+    ])
 
-    const { data: subjects } = await supabase
-      .from("subjects")
-      .select("id, name")
-      .eq("class_id", test.class_id)
-      .eq("archived", false)
-
-    const { data: marks } = await supabase
-      .from("marks")
-      .select("student_id, subject_id, obtained, total")
-      .eq("test_id", test.id)
+    const students = studentsRes.data
+    const subjects = subjectsRes.data
+    const marks = marksRes.data
 
     // Render the Class Test Results Dashboard component
     return (

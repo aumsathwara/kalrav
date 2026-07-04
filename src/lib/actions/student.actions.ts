@@ -15,26 +15,35 @@ export async function getStudentDashboardData(studentId: string) {
 
     if (studentError || !student) throw new Error("Student not found")
 
-    // 2. Get all published tests for this class
-    const { data: tests } = await supabase
-      .from("tests")
-      .select("*")
-      .eq("class_id", student.class_id)
-      .eq("status", "published")
-      .order("test_date", { ascending: true })
+    // 2. Fetch tests, marks, and notes in parallel
+    const [testsRes, marksRes, notesRes] = await Promise.all([
+      supabase
+        .from("tests")
+        .select("*")
+        .eq("class_id", student.class_id)
+        .eq("status", "published")
+        .order("test_date", { ascending: true }),
+      supabase
+        .from("marks")
+        .select("*, subjects(name)")
+        .eq("student_id", studentId),
+      supabase
+        .from("notes")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("type", "subject")
+    ])
 
-    const testIds = tests?.map(t => t.id) || []
+    const tests = testsRes.data || []
+    const allMarks = marksRes.data || []
+    const allNotes = notesRes.data || []
 
-    // 3. Get all marks for this student in these tests
-    const { data: marks } = await supabase
-      .from("marks")
-      .select("*, subjects(name)")
-      .eq("student_id", studentId)
-      .in("test_id", testIds.length > 0 ? testIds : ["00000000-0000-0000-0000-000000000000"])
+    const testIds = tests.map(t => t.id)
+    const marks = allMarks.filter(m => testIds.includes(m.test_id))
 
-    // 4. Calculate progress history
-    const history = tests?.map(t => {
-      const testMarks = marks?.filter(m => m.test_id === t.id) || []
+    // 3. Calculate progress history
+    const history = tests.map(t => {
+      const testMarks = marks.filter(m => m.test_id === t.id)
       const obtained = testMarks.reduce((sum, m) => sum + (m.obtained || 0), 0)
       const total = testMarks.reduce((sum, m) => sum + m.total, 0)
       const percentage = total > 0 ? (obtained / total) * 100 : 0
@@ -44,16 +53,16 @@ export async function getStudentDashboardData(studentId: string) {
         date: t.test_date,
         percentage: Number(percentage.toFixed(1))
       }
-    }) || []
+    })
 
-    // 5. Current performance (latest test)
-    const latestTest = tests && tests.length > 0 ? tests[tests.length - 1] : null
+    // 4. Current performance (latest test)
+    const latestTest = tests.length > 0 ? tests[tests.length - 1] : null
     let currentScore = 0
     let improvement = 0
     let subjectPerformance: any[] = []
 
     if (latestTest) {
-      const currentMarks = marks?.filter(m => m.test_id === latestTest.id) || []
+      const currentMarks = marks.filter(m => m.test_id === latestTest.id)
       const obtained = currentMarks.reduce((sum, m) => sum + (m.obtained || 0), 0)
       const total = currentMarks.reduce((sum, m) => sum + m.total, 0)
       currentScore = total > 0 ? Number(((obtained / total) * 100).toFixed(1)) : 0
@@ -63,14 +72,8 @@ export async function getStudentDashboardData(studentId: string) {
         improvement = Number((currentScore - previousScore).toFixed(1))
       }
 
-      const { data: studentNotes } = await supabase
-        .from("notes")
-        .select("*")
-        .eq("test_id", latestTest.id)
-        .eq("student_id", studentId)
-        .eq("type", "subject")
-
-      const notesMap = new Map((studentNotes || []).map(n => [n.subject_id, n.content]))
+      const studentNotes = allNotes.filter(n => n.test_id === latestTest.id)
+      const notesMap = new Map(studentNotes.map(n => [n.subject_id, n.content]))
 
       subjectPerformance = currentMarks.map(m => ({
         subjectName: (m.subjects as any)?.name,
@@ -79,6 +82,7 @@ export async function getStudentDashboardData(studentId: string) {
         percentage: m.total > 0 ? Number((((m.obtained || 0) / m.total) * 100).toFixed(1)) : 0,
         note: notesMap.get(m.subject_id) || undefined
       }))
+
       // Fetch published insights for the latest test
       const { data: insightsData } = await supabase
         .from("ai_insights")

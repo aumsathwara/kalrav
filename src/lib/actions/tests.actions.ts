@@ -16,30 +16,34 @@ export async function getTestSpreadsheetData(testId: string) {
 
     if (testError || !test) throw new Error("Supabase fetch failed")
 
-    const { data: students, error: studentsError } = await supabase
-      .from("students")
-      .select("*")
-      .eq("class_id", test.class_id)
-      .neq("status", "archived")
-      .order("name", { ascending: true })
+    const [studentsRes, subjectsRes, marksRes, notesRes] = await Promise.all([
+      supabase
+        .from("students")
+        .select("*")
+        .eq("class_id", test.class_id)
+        .neq("status", "archived")
+        .order("name", { ascending: true }),
+      supabase
+        .from("subjects")
+        .select("*")
+        .eq("class_id", test.class_id)
+        .eq("archived", false)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("marks")
+        .select("*")
+        .eq("test_id", testId),
+      supabase
+        .from("notes")
+        .select("*")
+        .eq("test_id", testId)
+        .eq("type", "subject")
+    ])
 
-    const { data: subjects, error: subjectsError } = await supabase
-      .from("subjects")
-      .select("*")
-      .eq("class_id", test.class_id)
-      .eq("archived", false)
-      .order("display_order", { ascending: true })
-
-    const { data: marks, error: marksError } = await supabase
-      .from("marks")
-      .select("*")
-      .eq("test_id", testId)
-
-    const { data: notes, error: notesError } = await supabase
-      .from("notes")
-      .select("*")
-      .eq("test_id", testId)
-      .eq("type", "subject")
+    const { data: students, error: studentsError } = studentsRes
+    const { data: subjects, error: subjectsError } = subjectsRes
+    const { data: marks, error: marksError } = marksRes
+    const { data: notes, error: notesError } = notesRes
 
     if (studentsError || subjectsError || marksError || notesError) {
       throw new Error("Failed to load spreadsheet data")
