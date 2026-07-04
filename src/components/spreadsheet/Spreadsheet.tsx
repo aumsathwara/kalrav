@@ -1,26 +1,30 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { updateMark, updateSubjectTotalMarks } from "@/lib/actions/marks.actions"
+import { updateMark, updateSubjectTotalMarks, updateMarkNote } from "@/lib/actions/marks.actions"
 
 type Subject = { id: string; name: string }
 type Student = { id: string; name: string; emoji: string }
 type Mark = { student_id: string; subject_id: string; obtained: number | null; total: number }
+type Note = { id?: string; student_id: string; subject_id: string; content: string; type: string }
 
 interface SpreadsheetProps {
   testId: string
   subjects: Subject[]
   students: Student[]
   initialMarks: Mark[]
+  initialNotes?: Note[]
   totals: Record<string, number>
 }
 
-export default function Spreadsheet({ testId, subjects, students, initialMarks, totals }: SpreadsheetProps) {
+export default function Spreadsheet({ testId, subjects, students, initialMarks, initialNotes = [], totals }: SpreadsheetProps) {
   const [marks, setMarks] = useState<Mark[]>(initialMarks)
+  const [notes, setNotes] = useState<Note[]>(initialNotes)
   const [localTotals, setLocalTotals] = useState<Record<string, number>>(totals)
   const [editingCell, setEditingCell] = useState<{ studentId: string; subjectId: string } | null>(null)
   const [editValue, setEditValue] = useState<string>("")
   const [editTotalValue, setEditTotalValue] = useState<string>("")
+  const [editNoteValue, setEditNoteValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -36,6 +40,10 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
   useEffect(() => {
     setMarks(initialMarks)
   }, [initialMarks])
+
+  useEffect(() => {
+    setNotes(initialNotes)
+  }, [initialNotes])
  
   useEffect(() => {
     setLocalTotals(totals)
@@ -44,11 +52,17 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
   const getMark = (studentId: string, subjectId: string) => {
     return marks.find((m) => m.student_id === studentId && m.subject_id === subjectId)
   }
+
+  const getNote = (studentId: string, subjectId: string) => {
+    return notes.find((n) => n.student_id === studentId && n.subject_id === subjectId && n.type === "subject")
+  }
  
   const handleCellClick = (studentId: string, subjectId: string) => {
     const mark = getMark(studentId, subjectId)
+    const note = getNote(studentId, subjectId)
     setEditValue(mark?.obtained !== null && mark?.obtained !== undefined ? mark.obtained.toString() : "")
     setEditTotalValue(mark?.total !== null && mark?.total !== undefined ? mark.total.toString() : (localTotals[subjectId] || 30).toString())
+    setEditNoteValue(note?.content || "")
     setEditingCell({ studentId, subjectId })
   }
  
@@ -74,6 +88,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
  
     try {
       await updateMark(testId, studentId, subjectId, obtained, total)
+      await updateMarkNote(testId, studentId, subjectId, editNoteValue)
       
       setMarks((prev) => {
         const index = prev.findIndex((m) => m.student_id === studentId && m.subject_id === subjectId)
@@ -84,6 +99,22 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
         } else {
           return [...prev, { student_id: studentId, subject_id: subjectId, obtained, total }]
         }
+      })
+
+      setNotes((prev) => {
+        const index = prev.findIndex((n) => n.student_id === studentId && n.subject_id === subjectId && n.type === "subject")
+        if (index >= 0) {
+          const newNotes = [...prev]
+          if (editNoteValue.trim() === "") {
+            newNotes.splice(index, 1)
+          } else {
+            newNotes[index] = { ...newNotes[index], content: editNoteValue.trim() }
+          }
+          return newNotes
+        } else if (editNoteValue.trim() !== "") {
+          return [...prev, { student_id: studentId, subject_id: subjectId, content: editNoteValue.trim(), type: "subject" }]
+        }
+        return prev
       })
       
       setSaveSuccess(true)
@@ -141,7 +172,54 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
         </div>
       )}
 
-      <div className="overflow-auto border rounded-xl flex-1 relative">
+      {/* Mobile Stacked Card View */}
+      <div className="block md:hidden flex-1 overflow-y-auto space-y-4 p-4">
+        {students.map((student) => (
+          <div key={student.id} className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4 space-y-3">
+            <div className="flex items-center gap-2.5 pb-2.5 border-b border-gray-100">
+              <span className="text-2xl">{student.emoji}</span>
+              <span className="font-bold text-gray-800 text-base">{student.name}</span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              {subjects.map((subject) => {
+                const mark = getMark(student.id, subject.id)
+                const note = getNote(student.id, subject.id)
+                return (
+                  <div 
+                    key={subject.id} 
+                    onClick={() => handleCellClick(student.id, subject.id)}
+                    className="flex flex-col p-2.5 bg-gray-50 hover:bg-blue-50/50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-blue-100 justify-between gap-1"
+                  >
+                    <div>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{subject.name}</span>
+                      <div className="flex items-center justify-between mt-1">
+                        <div className="text-sm font-black text-gray-800">
+                          {mark?.obtained !== null && mark?.obtained !== undefined ? (
+                            <span>{mark.obtained}</span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                          <span className="text-gray-400 text-xs font-semibold ml-1">/ {mark?.total !== undefined && mark?.total !== null ? mark.total : (localTotals[subject.id] || 30)}</span>
+                        </div>
+                        <span className="text-gray-400 text-xs">✏️</span>
+                      </div>
+                    </div>
+                    {note?.content && (
+                      <div className="text-[10px] text-gray-500 italic truncate mt-1 pt-1 border-t border-gray-200/50" title={note.content}>
+                        📝 {note.content}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Spreadsheet Table View */}
+      <div className="hidden md:block overflow-auto border rounded-xl flex-1 relative">
         <table className="w-full text-left border-collapse min-w-max">
           <thead className="sticky top-0 bg-gray-50 shadow-sm z-20">
             <tr>
@@ -177,6 +255,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                 </td>
                 {subjects.map((subject) => {
                   const mark = getMark(student.id, subject.id)
+                  const note = getNote(student.id, subject.id)
                   const isEditing = editingCell?.studentId === student.id && editingCell?.subjectId === subject.id
 
                   return (
@@ -188,7 +267,7 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                       <div className="w-full h-full p-4 min-h-[64px] flex items-center justify-center">
                         {isEditing ? (
                           <div 
-                            className="absolute z-30 bg-white shadow-2xl rounded-2xl p-3 border flex flex-col gap-2.5 min-w-[190px] -left-4 -top-14 text-black text-left"
+                            className="absolute z-30 bg-white shadow-2xl rounded-2xl p-3.5 border flex flex-col gap-2.5 min-w-[230px] -left-8 -top-32 text-black text-left"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -216,6 +295,18 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                                 disabled={isSaving}
                               />
                             </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-semibold text-gray-500">Note for Parents:</span>
+                              <input
+                                type="text"
+                                value={editNoteValue}
+                                onChange={(e) => setEditNoteValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Add note..."
+                                className="w-full bg-gray-100 p-1.5 rounded outline-none text-xs text-gray-700 font-medium"
+                                disabled={isSaving}
+                              />
+                            </div>
                             <div className="flex gap-2 justify-end mt-0.5">
                               <button
                                 onClick={(e) => {
@@ -240,13 +331,20 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                             </div>
                           </div>
                         ) : (
-                          <div className="text-lg text-gray-800">
-                            {mark?.obtained !== null && mark?.obtained !== undefined ? (
-                              <span className="font-medium">{mark.obtained}</span>
-                            ) : (
-                              <span className="text-gray-300">-</span>
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="text-lg text-gray-800">
+                              {mark?.obtained !== null && mark?.obtained !== undefined ? (
+                                <span className="font-medium">{mark.obtained}</span>
+                              ) : (
+                                <span className="text-gray-300">-</span>
+                              )}
+                              <span className="text-gray-400 text-sm ml-1">/ {mark?.total !== undefined && mark?.total !== null ? mark.total : (localTotals[subject.id] || 30)}</span>
+                            </div>
+                            {note?.content && (
+                              <div className="text-[10px] text-gray-500 italic mt-0.5 max-w-[130px] truncate" title={note.content}>
+                                📝 {note.content}
+                              </div>
                             )}
-                            <span className="text-gray-400 text-sm ml-1">/ {mark?.total !== undefined && mark?.total !== null ? mark.total : (localTotals[subject.id] || 30)}</span>
                           </div>
                         )}
                       </div>
@@ -258,6 +356,85 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
           </tbody>
         </table>
       </div>
+
+      {/* Mobile Center Edit Modal Overlay */}
+      {editingCell && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in md:hidden"
+          onClick={() => setEditingCell(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-4 text-black"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="text-lg font-extrabold text-gray-900 flex items-center gap-1.5">
+                ✏️ Edit Marks
+              </h3>
+              <p className="text-xs text-gray-400 font-semibold mt-1">
+                Student: <span className="font-bold text-gray-700">{students.find(s => s.id === editingCell.studentId)?.name}</span>
+                <br />
+                Subject: <span className="font-bold text-gray-700">{subjects.find(sub => sub.id === editingCell.subjectId)?.name}</span>
+              </p>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm font-bold text-gray-600">Obtained:</span>
+                <input
+                  ref={inputRef}
+                  type="number"
+                  inputMode="decimal"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="w-24 bg-gray-50 border border-gray-200 p-2 rounded-xl outline-none text-md font-bold text-right focus:border-blue-500 transition-colors"
+                  disabled={isSaving}
+                  placeholder="-"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm font-bold text-gray-600">Total Marks:</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={editTotalValue}
+                  onChange={(e) => setEditTotalValue(e.target.value)}
+                  className="w-24 bg-gray-50 border border-gray-200 p-2 rounded-xl outline-none text-md font-bold text-right focus:border-blue-500 transition-colors"
+                  disabled={isSaving}
+                />
+              </div>
+              <div className="flex flex-col gap-1 mt-1">
+                <span className="text-xs font-bold text-gray-500">Note for Parents:</span>
+                <input
+                  type="text"
+                  value={editNoteValue}
+                  onChange={(e) => setEditNoteValue(e.target.value)}
+                  placeholder="Needs practice / Great job!..."
+                  className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl outline-none text-sm font-semibold focus:border-blue-500 transition-colors"
+                  disabled={isSaving}
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-end mt-2">
+              <button
+                onClick={() => setEditingCell(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors"
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm shadow-blue-200"
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save ✓"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

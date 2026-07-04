@@ -35,7 +35,13 @@ export async function getTestSpreadsheetData(testId: string) {
       .select("*")
       .eq("test_id", testId)
 
-    if (studentsError || subjectsError || marksError) {
+    const { data: notes, error: notesError } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("test_id", testId)
+      .eq("type", "subject")
+
+    if (studentsError || subjectsError || marksError || notesError) {
       throw new Error("Failed to load spreadsheet data")
     }
 
@@ -48,6 +54,7 @@ export async function getTestSpreadsheetData(testId: string) {
       students: students || [],
       subjects: subjects || [],
       marks: marks || [],
+      notes: notes || [],
       totals
     }
   } catch (err) {

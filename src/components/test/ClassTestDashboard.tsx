@@ -379,7 +379,58 @@ export function ClassTestDashboard({ test, students, subjects, marks }: ClassTes
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+              {/* Mobile Stacked Student List View */}
+              <div className="block md:hidden space-y-4">
+                {sortedStudents.map(student => (
+                  <Link 
+                    key={student.id} 
+                    href={`/student/${student.id}`}
+                    className="block bg-slate-50 hover:bg-blue-50/50 border border-slate-100 rounded-2xl p-4 transition-all"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-200/50 pb-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm border border-slate-100">{student.emoji}</span>
+                        <span className="font-bold text-slate-800 text-sm">{student.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{t.overallCol}</span>
+                        <span className="text-sm font-black text-blue-600">
+                          {toGujText(Math.round(student.overallPercentage * 10) / 10)}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {subjects.map(subject => {
+                        const score = student.subjectPercentages[subject.id]
+                        const obtainedText = student.subjectObtained[subject.id]
+                        return (
+                          <div key={subject.id} className="bg-white border border-slate-100 p-2 rounded-xl flex flex-col justify-between">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{subject.name}</span>
+                            <div className="flex items-baseline justify-between mt-1">
+                              {score !== null ? (
+                                <>
+                                  <span className="text-xs font-bold text-slate-800">
+                                    {toGujText(Math.round(score * 10) / 10)}%
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-semibold">
+                                    ({toGujText(obtainedText)})
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-xs font-medium text-slate-300 italic">{t.absent}</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Desktop Score Matrix Table View */}
+              <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-100">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">

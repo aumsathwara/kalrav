@@ -4,7 +4,7 @@ import { getTestSpreadsheetData } from "@/lib/actions/tests.actions"
 
 export default async function AdminTestSpreadsheetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { test, students, subjects, marks, totals } = await getTestSpreadsheetData(id)
+  const { test, students, subjects, marks, notes, totals } = await getTestSpreadsheetData(id)
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -25,6 +25,7 @@ export default async function AdminTestSpreadsheetPage({ params }: { params: Pro
           subjects={subjects} 
           students={students} 
           initialMarks={marks} 
+          initialNotes={notes || []}
           totals={totals} 
         />
       </main>

@@ -16,6 +16,7 @@ interface SubjectPerformance {
   obtained: number | null
   total: number
   percentage: number
+  note?: string
 }
 
 interface HistoryItem {
@@ -199,11 +200,18 @@ export function DashboardContent({
                     {t.obtainedOf}
                   </div>
                 </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <span className="text-xl font-black">{toGujaratiDigits(sub.percentage)}%</span>
-                  <span className="text-xs font-semibold opacity-70">
-                    {sub.obtained !== null ? toGujaratiDigits(sub.obtained) : "-"} / {toGujaratiDigits(sub.total)}
-                  </span>
+                <div className="mt-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xl font-black">{toGujaratiDigits(sub.percentage)}%</span>
+                    <span className="text-xs font-semibold opacity-70">
+                      {sub.obtained !== null ? toGujaratiDigits(sub.obtained) : "-"} / {toGujaratiDigits(sub.total)}
+                    </span>
+                  </div>
+                  {sub.note && (
+                    <div className="mt-2 pt-2 border-t border-black/10 text-[10px] italic font-semibold leading-relaxed text-gray-600">
+                      📝 {sub.note}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

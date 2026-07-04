@@ -63,11 +63,21 @@ export async function getStudentDashboardData(studentId: string) {
         improvement = Number((currentScore - previousScore).toFixed(1))
       }
 
+      const { data: studentNotes } = await supabase
+        .from("notes")
+        .select("*")
+        .eq("test_id", latestTest.id)
+        .eq("student_id", studentId)
+        .eq("type", "subject")
+
+      const notesMap = new Map((studentNotes || []).map(n => [n.subject_id, n.content]))
+
       subjectPerformance = currentMarks.map(m => ({
         subjectName: (m.subjects as any)?.name,
         obtained: m.obtained,
         total: m.total,
-        percentage: m.total > 0 ? Number((((m.obtained || 0) / m.total) * 100).toFixed(1)) : 0
+        percentage: m.total > 0 ? Number((((m.obtained || 0) / m.total) * 100).toFixed(1)) : 0,
+        note: notesMap.get(m.subject_id) || undefined
       }))
       // Fetch published insights for the latest test
       const { data: insightsData } = await supabase

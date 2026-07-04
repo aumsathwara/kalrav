@@ -224,33 +224,22 @@ export function AdminTestHeader({
     .filter(s => s.hasMarks)
     .sort((a, b) => b.percentage - a.percentage) // Rank by overall percentage descending
 
-    // 2. Format marks matrix table in plain text (monospace block for WhatsApp)
-    // Align columns: Student name column is 12 chars, each subject column is 6 chars, Overall is 7 chars
-    const headerName = "Student".padEnd(12)
-    const headerSubs = subjects.map(s => s.name.substring(0, 5).padEnd(6)).join("| ")
-    const tableHeader = `${headerName}| ${headerSubs}| Overall`
-    const tableDivider = "-".repeat(tableHeader.length)
-
-    const tableRows = studentPerformance.map(s => {
+    // 2. Format marks matrix as a vertical tree list (perfect mobile-alignment on WhatsApp)
+    const matrixText = studentPerformance.map(s => {
       const studentMarks = initialMarks.filter(m => m.student_id === s.id)
-      const namePart = s.name.substring(0, 11).padEnd(12)
-      const subPart = subjects.map(sub => {
+      
+      const subjectLines = subjects.map(sub => {
         const mark = studentMarks.find(m => m.subject_id === sub.id)
         if (mark && mark.obtained !== null) {
           const pct = (Number(mark.obtained) / Number(mark.total)) * 100
-          return `${Math.round(pct)}%`.padEnd(6)
+          return `  ├ ${sub.name}: *${Math.round(pct)}%*`
         }
-        return "-".padEnd(6)
-      }).join("| ")
-      
-      return `${namePart}| ${subPart}| ${Math.round(s.percentage)}%`
-    }).join("\n")
+        return null
+      }).filter(Boolean)
 
-    const matrixTable = `\`\`\`
-${tableHeader}
-${tableDivider}
-${tableRows}
-\`\`\``
+      const overallLine = `  └ Overall Score: *${Math.round(s.percentage)}%*`
+      return `👤 *${s.name}*\n${subjectLines.join("\n")}${subjectLines.length > 0 ? "\n" : ""}${overallLine}`
+    }).join("\n\n")
 
     const viewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/std/${testId}`
 
@@ -261,7 +250,7 @@ ${tableRows}
 • Total Students: ${students.length}
 
 📋 *Marks Matrix:*
-${matrixTable}
+${matrixText}
 
 🔗 View detailed reports, progress charts, and AI insights:
 ${viewUrl}

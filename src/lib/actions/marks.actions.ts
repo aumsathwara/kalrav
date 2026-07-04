@@ -92,3 +92,48 @@ export async function updateSubjectTotalMarks(testId: string, subjectId: string,
   return { success: true }
 }
 
+export async function updateMarkNote(testId: string, studentId: string, subjectId: string, noteContent: string) {
+  const supabase = createAdminClient()
+
+  // Fetch existing note for this student and subject
+  const { data: existing } = await supabase
+    .from("notes")
+    .select("id")
+    .eq("test_id", testId)
+    .eq("student_id", studentId)
+    .eq("subject_id", subjectId)
+    .eq("type", "subject")
+    .maybeSingle()
+
+  if (!noteContent || noteContent.trim() === "") {
+    if (existing) {
+      const { error: deleteError } = await supabase
+        .from("notes")
+        .delete()
+        .eq("id", existing.id)
+      if (deleteError) throw deleteError
+    }
+    return { success: true }
+  }
+
+  const { error } = await supabase
+    .from("notes")
+    .upsert({
+      id: existing?.id,
+      test_id: testId,
+      student_id: studentId,
+      subject_id: subjectId,
+      type: "subject",
+      content: noteContent.trim(),
+      published: true,
+      updated_at: new Date().toISOString()
+    })
+
+  if (error) {
+    console.error("Error updating mark note", error)
+    throw new Error("Failed to update note")
+  }
+
+  return { success: true }
+}
+
