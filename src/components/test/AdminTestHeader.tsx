@@ -198,10 +198,59 @@ export function AdminTestHeader({
   }
 
   // 5. WhatsApp: Format share message
+  const [copiedImage, setCopiedImage] = useState(false)
+  const [isCopyingImage, setIsCopyingImage] = useState(false)
+
+  // 5. WhatsApp: Format share message with Monospace Matrix Table
   const getShareText = () => {
     const totalMarks = initialMarks.reduce((sum, m) => sum + (m.obtained || 0), 0)
     const totalMax = initialMarks.reduce((sum, m) => sum + m.total, 0)
     const classAverage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0
+
+    // 1. Group marks by student to get overall percentages
+    const studentPerformance = students.map(student => {
+      const studentMarks = initialMarks.filter(m => m.student_id === student.id)
+      const validMarks = studentMarks.filter(m => m.obtained !== null)
+      const obtainedSum = validMarks.reduce((sum, m) => sum + Number(m.obtained), 0)
+      const totalSum = validMarks.reduce((sum, m) => sum + Number(m.total), 0)
+      const percentage = totalSum > 0 ? (obtainedSum / totalSum) * 100 : 0
+      return {
+        id: student.id,
+        name: student.name,
+        percentage,
+        hasMarks: validMarks.length > 0
+      }
+    })
+    .filter(s => s.hasMarks)
+    .sort((a, b) => b.percentage - a.percentage) // Rank by overall percentage descending
+
+    // 2. Format marks matrix table in plain text (monospace block for WhatsApp)
+    // Align columns: Student name column is 12 chars, each subject column is 6 chars, Overall is 7 chars
+    const headerName = "Student".padEnd(12)
+    const headerSubs = subjects.map(s => s.name.substring(0, 5).padEnd(6)).join("| ")
+    const tableHeader = `${headerName}| ${headerSubs}| Overall`
+    const tableDivider = "-".repeat(tableHeader.length)
+
+    const tableRows = studentPerformance.map(s => {
+      const studentMarks = initialMarks.filter(m => m.student_id === s.id)
+      const namePart = s.name.substring(0, 11).padEnd(12)
+      const subPart = subjects.map(sub => {
+        const mark = studentMarks.find(m => m.subject_id === sub.id)
+        if (mark && mark.obtained !== null) {
+          const pct = (Number(mark.obtained) / Number(mark.total)) * 100
+          return `${Math.round(pct)}%`.padEnd(6)
+        }
+        return "-".padEnd(6)
+      }).join("| ")
+      
+      return `${namePart}| ${subPart}| ${Math.round(s.percentage)}%`
+    }).join("\n")
+
+    const matrixTable = `\`\`\`
+${tableHeader}
+${tableDivider}
+${tableRows}
+\`\`\``
 
     const viewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/std/${testId}`
 
@@ -211,10 +260,141 @@ export function AdminTestHeader({
 • Class Average: *${classAverage.toFixed(1)}%*
 • Total Students: ${students.length}
 
-🔗 View detailed reports, progress charts, and AI insights for your child:
+📋 *Marks Matrix:*
+${matrixTable}
+
+🔗 View detailed reports, progress charts, and AI insights:
 ${viewUrl}
 
 _Kalrav Classes Tuition Progress Tracker_`
+  }
+
+  // 6. Generate Horizonal Bar Chart PNG Blob via HTML5 Canvas
+  const generateChartImageBlob = async (): Promise<Blob> => {
+    const studentPerformance = students.map(student => {
+      const studentMarks = initialMarks.filter(m => m.student_id === student.id)
+      const validMarks = studentMarks.filter(m => m.obtained !== null)
+      const obtainedSum = validMarks.reduce((sum, m) => sum + Number(m.obtained), 0)
+      const totalSum = validMarks.reduce((sum, m) => sum + Number(m.total), 0)
+      const percentage = totalSum > 0 ? (obtainedSum / totalSum) * 100 : 0
+      return {
+        name: student.name,
+        percentage,
+        hasMarks: validMarks.length > 0
+      }
+    })
+    .filter(s => s.hasMarks)
+    .sort((a, b) => b.percentage - a.percentage)
+
+    const canvas = document.createElement("canvas")
+    canvas.width = 600
+    canvas.height = 140 + studentPerformance.length * 45
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error("Could not get canvas context")
+
+    // Draw background gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    gradient.addColorStop(0, "#ffffff")
+    gradient.addColorStop(1, "#f9fafb")
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Border
+    ctx.strokeStyle = "#e5e7eb"
+    ctx.lineWidth = 4
+    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4)
+
+    // Draw Header Title
+    ctx.fillStyle = "#1e3a8a" // Slate Blue
+    ctx.font = "bold 22px sans-serif"
+    ctx.fillText("Kalrav Classes - Leaderboard", 30, 45)
+
+    ctx.fillStyle = "#4b5563"
+    ctx.font = "14px sans-serif"
+    ctx.fillText(`${testName} • Class ${className || ""}`, 30, 72)
+
+    // Draw horizontal bars
+    const startY = 110
+    const barHeight = 24
+    const spacing = 45
+    const maxBarWidth = 350
+    const startX = 160
+
+    studentPerformance.forEach((s, idx) => {
+      const y = startY + idx * spacing
+
+      // Name & Rank
+      ctx.fillStyle = "#1f2937"
+      ctx.font = "bold 13px sans-serif"
+      ctx.fillText(`${idx + 1}. ${s.name.substring(0, 16)}`, 30, y + 17)
+
+      // Bar container background
+      ctx.fillStyle = "#e5e7eb"
+      ctx.fillRect(startX, y, maxBarWidth, barHeight)
+
+      // Filled bar width
+      const width = (s.percentage / 100) * maxBarWidth
+      // Gradient for bar
+      const barGradient = ctx.createLinearGradient(startX, 0, startX + maxBarWidth, 0)
+      if (s.percentage >= 90) {
+        barGradient.addColorStop(0, "#22c55e")
+        barGradient.addColorStop(1, "#4ade80")
+      } else if (s.percentage >= 75) {
+        barGradient.addColorStop(0, "#3b82f6")
+        barGradient.addColorStop(1, "#60a5fa")
+      } else if (s.percentage >= 50) {
+        barGradient.addColorStop(0, "#eab308")
+        barGradient.addColorStop(1, "#facc15")
+      } else {
+        barGradient.addColorStop(0, "#ef4444")
+        barGradient.addColorStop(1, "#f87171")
+      }
+      ctx.fillStyle = barGradient
+      ctx.fillRect(startX, y, width, barHeight)
+
+      // Percentage value text
+      ctx.fillStyle = "#111827"
+      ctx.font = "bold 13px sans-serif"
+      ctx.fillText(`${s.percentage.toFixed(1)}%`, startX + maxBarWidth + 15, y + 17)
+    })
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob)
+      }, "image/png")
+    })
+  }
+
+  const handleCopyImage = async () => {
+    setIsCopyingImage(true)
+    try {
+      const blob = await generateChartImageBlob()
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob })
+      ])
+      setCopiedImage(true)
+      setTimeout(() => setCopiedImage(false), 2000)
+    } catch (err) {
+      console.error(err)
+      alert("Browser clipboard copy failed. Please use 'Download Chart' instead.")
+    } finally {
+      setIsCopyingImage(false)
+    }
+  }
+
+  const handleDownloadImage = async () => {
+    try {
+      const blob = await generateChartImageBlob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `${testName.replace(/\s+/g, "_")}_chart.png`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+      alert("Failed to download image.")
+    }
   }
 
   const handleWhatsAppShare = () => {
@@ -458,6 +638,25 @@ _Kalrav Classes Tuition Progress Tracker_`
                 >
                   🟢 WhatsApp
                 </button>
+              </div>
+
+              <div className="border-t border-gray-100 my-4 pt-4">
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Visual Bar Chart (PNG)</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleCopyImage}
+                    disabled={isCopyingImage}
+                    className="flex-1 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {copiedImage ? "✓ Copied Chart!" : isCopyingImage ? "Copying..." : "📷 Copy Chart Image"}
+                  </button>
+                  <button 
+                    onClick={handleDownloadImage}
+                    className="flex-1 py-2.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
+                  >
+                    💾 Download Chart
+                  </button>
+                </div>
               </div>
             </div>
             
