@@ -245,17 +245,11 @@ export function AdminTestHeader({
 
     return `📚 *${testName} Results (Class ${className || ""})*
 
-📊 *Class Summary:*
-• Class Average: *${classAverage.toFixed(1)}%*
-• Total Students: ${students.length}
-
 📋 *Marks Matrix:*
 ${matrixText}
 
 🔗 View detailed reports, progress charts, and AI insights:
-${viewUrl}
-
-_Kalrav Classes Tuition Progress Tracker_`
+${viewUrl}`
   }
 
   // 6. Generate Horizonal Bar Chart PNG Blob via HTML5 Canvas
@@ -509,7 +503,7 @@ _Kalrav Classes Tuition Progress Tracker_`
               {ocrResults.length > 0 && (
                 <div className="space-y-4">
                   <h3 className="font-bold text-gray-800 text-lg">Verify & Edit Parsed Scores</h3>
-                  <div className="border rounded-xl overflow-hidden max-h-[40vh] overflow-y-auto">
+                  <div className="border rounded-xl max-h-[40vh] overflow-auto">
                     <table className="w-full text-left border-collapse">
                       <thead className="bg-gray-50 sticky top-0 border-b">
                         <tr>
@@ -643,7 +637,7 @@ _Kalrav Classes Tuition Progress Tracker_`
               <h2 className="text-xl font-bold text-gray-900 mb-1">📢 Share Test Results</h2>
               <p className="text-gray-500 text-sm mb-6">Send summaries and view links directly to parents.</p>
               
-              <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl text-sm text-gray-700 mb-6 font-medium whitespace-pre-wrap leading-relaxed">
+              <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl text-sm text-gray-700 mb-6 font-medium whitespace-pre-wrap leading-relaxed max-h-[25vh] overflow-y-auto">
                 {getShareText()}
               </div>
 
