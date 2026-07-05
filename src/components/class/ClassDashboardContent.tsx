@@ -683,7 +683,7 @@ export default function ClassDashboardContent({
               
               <form onSubmit={handleSaveTest}>
                 {/* Step 1: Test Details */}
-                {(testModalMode === "edit" || testModalStep === 1) && (
+                {testModalStep === 1 && (
                   <div className="p-6 space-y-4">
                     {/* Test Name */}
                     <div>
