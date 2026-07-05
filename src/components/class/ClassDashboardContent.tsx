@@ -233,6 +233,20 @@ export default function ClassDashboardContent({
     setTestName(test.name)
     setTestDate(test.test_date)
     setTestStatus(test.status.toLowerCase())
+    setTestModalStep(1)
+    
+    // Initialize selected subjects based on the class's existing subjects
+    const activeSubs: Record<string, boolean> = {}
+    const activeTotals: Record<string, string> = {}
+    
+    PREBUILT_SUBJECTS.forEach(subName => {
+      const match = subjects.find(s => s.name.toLowerCase() === subName.toLowerCase())
+      activeSubs[subName] = !!match
+      activeTotals[subName] = "100"
+    })
+    
+    setSelectedSubjectsState(activeSubs)
+    setSubjectTotalsState(activeTotals)
     setShowTestModal(true)
   }
 
@@ -247,7 +261,7 @@ export default function ClassDashboardContent({
     e.preventDefault()
     if (!testName.trim()) return
 
-    if (testModalMode === "create" && testModalStep === 1) {
+    if (testModalStep === 1) {
       setTestModalStep(2)
       return
     }
@@ -293,6 +307,30 @@ export default function ClassDashboardContent({
         alert("Test created successfully. ✓")
       } else if (testModalMode === "edit" && editingTestId) {
         const updated = await updateTest(editingTestId, testName.trim(), testDate, testStatus)
+        
+        // Resolve subjects in edit mode as well
+        const selectedSubjectDetails = PREBUILT_SUBJECTS.map((subName) => {
+          const isSelected = selectedSubjectsState[subName]
+          const totalMarks = parseFloat(subjectTotalsState[subName]) || 100
+          return { name: subName, isSelected, totalMarks }
+        }).filter(item => item.isSelected)
+
+        const finalSubjectsForState: Subject[] = [...subjects]
+
+        for (const item of selectedSubjectDetails) {
+          let existingSub = subjects.find(s => s.name.toLowerCase() === item.name.toLowerCase())
+          
+          if (!existingSub) {
+            const created = await createSubject(classId, item.name)
+            existingSub = { id: created.id, name: created.name }
+            finalSubjectsForState.push(existingSub)
+          }
+
+          await updateSubjectTotalMarks(editingTestId, existingSub.id, item.totalMarks)
+        }
+
+        setSubjects(finalSubjectsForState)
+
         setTests((prev) => prev.map((t) => t.id === editingTestId ? {
           id: updated.id,
           name: updated.name,
@@ -688,7 +726,7 @@ export default function ClassDashboardContent({
                 )}
 
                 {/* Step 2: Subjects Module */}
-                {testModalMode === "create" && testModalStep === 2 && (
+                {testModalStep === 2 && (
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Step 2 of 2: Subjects Selection</span>
@@ -749,7 +787,7 @@ export default function ClassDashboardContent({
                 )}
 
                 <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
-                  {testModalMode === "create" && testModalStep === 2 ? (
+                  {testModalStep === 2 ? (
                     <>
                       <button
                         type="button"
@@ -764,7 +802,7 @@ export default function ClassDashboardContent({
                         disabled={isSubmitting}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
                       >
-                        {isSubmitting ? "Creating..." : "Create Test ✓"}
+                        {isSubmitting ? "Saving..." : (testModalMode === "create" ? "Create Test ✓" : "Save Changes ✓")}
                       </button>
                     </>
                   ) : (
@@ -781,7 +819,7 @@ export default function ClassDashboardContent({
                         disabled={isSubmitting}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
                       >
-                        {testModalMode === "create" ? "Continue →" : "Save Details ✓"}
+                        Continue →
                       </button>
                     </>
                   )}
