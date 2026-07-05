@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { AdminTestHeader } from "@/components/test/AdminTestHeader"
 import Spreadsheet from "@/components/spreadsheet/Spreadsheet"
 
@@ -35,8 +36,23 @@ export default function AdminTestSpreadsheetClient({
   initialNotes,
   totals
 }: AdminTestSpreadsheetClientProps) {
+  const router = useRouter()
   const [marks, setMarks] = useState<Mark[]>(initialMarks)
   const [notes, setNotes] = useState<Note[]>(initialNotes)
+
+  // Force Next.js to bypass router cache and pull fresh data on navigation mount
+  useEffect(() => {
+    router.refresh()
+  }, [router])
+
+  // Synchronize state variables if props update (like after router.refresh finishes)
+  useEffect(() => {
+    setMarks(initialMarks)
+  }, [initialMarks])
+
+  useEffect(() => {
+    setNotes(initialNotes)
+  }, [initialNotes])
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">

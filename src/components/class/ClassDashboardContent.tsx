@@ -76,6 +76,42 @@ export default function ClassDashboardContent({
   const [testDate, setTestDate] = useState("")
   const [testStatus, setTestStatus] = useState("draft")
 
+  // Create Test Stepper State
+  const [testModalStep, setTestModalStep] = useState<1 | 2>(1)
+  
+  const PREBUILT_SUBJECTS = [
+    "English",
+    "Hindi",
+    "Maths",
+    "Social Science",
+    "Environment Science",
+    "Sanskrit",
+    "Computer",
+    "Gujarati"
+  ]
+
+  const [selectedSubjectsState, setSelectedSubjectsState] = useState<Record<string, boolean>>({
+    "English": true,
+    "Hindi": true,
+    "Maths": true,
+    "Social Science": true,
+    "Environment Science": true,
+    "Sanskrit": false,
+    "Computer": false,
+    "Gujarati": true
+  })
+  
+  const [subjectTotalsState, setSubjectTotalsState] = useState<Record<string, string>>({
+    "English": "100",
+    "Hindi": "100",
+    "Maths": "100",
+    "Social Science": "100",
+    "Environment Science": "100",
+    "Sanskrit": "100",
+    "Computer": "100",
+    "Gujarati": "100"
+  })
+
   // Test Delete state
   const [showConfirmDeleteTest, setShowConfirmDeleteTest] = useState(false)
   const [deletingTest, setDeletingTest] = useState<Test | null>(null)
@@ -165,6 +201,27 @@ export default function ClassDashboardContent({
     setTestName("")
     setTestDate(new Date().toISOString().split("T")[0])
     setTestStatus("draft")
+    setTestModalStep(1)
+    setSelectedSubjectsState({
+      "English": true,
+      "Hindi": true,
+      "Maths": true,
+      "Social Science": true,
+      "Environment Science": true,
+      "Sanskrit": false,
+      "Computer": false,
+      "Gujarati": true
+    })
+    setSubjectTotalsState({
+      "English": "100",
+      "Hindi": "100",
+      "Maths": "100",
+      "Social Science": "100",
+      "Environment Science": "100",
+      "Sanskrit": "100",
+      "Computer": "100",
+      "Gujarati": "100"
+    })
     setShowTestModal(true)
   }
 
@@ -190,17 +247,42 @@ export default function ClassDashboardContent({
     e.preventDefault()
     if (!testName.trim()) return
 
+    if (testModalMode === "create" && testModalStep === 1) {
+      setTestModalStep(2)
+      return
+    }
+
     setIsSubmitting(true)
     try {
       if (testModalMode === "create") {
         const newTest = await createTest(classId, testName.trim(), testDate, testStatus)
         
-        // Batch write subject totals for this new test in database
-        const promises = subjects.map((sub) => {
-          const total = subjectTotals[sub.id] || 100
-          return updateSubjectTotalMarks(newTest.id, sub.id, total)
-        })
-        await Promise.all(promises)
+        // 2. Resolve subjects
+        const selectedSubjectDetails = PREBUILT_SUBJECTS.map((subName) => {
+          const isSelected = selectedSubjectsState[subName]
+          const totalMarks = parseFloat(subjectTotalsState[subName]) || 100
+          return { name: subName, isSelected, totalMarks }
+        }).filter(item => item.isSelected)
+
+        const finalSubjectsForState: Subject[] = [...subjects]
+
+        for (const item of selectedSubjectDetails) {
+          // Find if subject already exists for the class
+          let existingSub = subjects.find(s => s.name.toLowerCase() === item.name.toLowerCase())
+          
+          if (!existingSub) {
+            // Create subject in DB
+            const created = await createSubject(classId, item.name)
+            existingSub = { id: created.id, name: created.name }
+            finalSubjectsForState.push(existingSub)
+          }
+
+          // Write subject total marks for this test
+          await updateSubjectTotalMarks(newTest.id, existingSub.id, item.totalMarks)
+        }
+
+        // Update subjects state
+        setSubjects(finalSubjectsForState)
 
         setTests((prev) => [...prev, {
           id: newTest.id,
@@ -562,113 +644,147 @@ export default function ClassDashboardContent({
               </div>
               
               <form onSubmit={handleSaveTest}>
-                <div className="p-6 space-y-4">
-                  {/* Test Name */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Test Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={testName}
-                      onChange={(e) => setTestName(e.target.value)}
-                      placeholder="e.g. June Monthly Exam"
-                      className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                    />
-                  </div>
-
-                  {/* Test Date */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Test Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={testDate}
-                      onChange={(e) => setTestDate(e.target.value)}
-                      className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                    />
-                  </div>
-
-                  {/* Test Status */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Publish Status</label>
-                    <select
-                      value={testStatus}
-                      onChange={(e) => setTestStatus(e.target.value)}
-                      className="w-full border rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                    >
-                      <option value="draft">Draft (Visible to Admin Only)</option>
-                      <option value="published">Published (Visible to Parents)</option>
-                    </select>
-                  </div>
-
-                  {/* Class Subjects Section */}
-                  <div className="border-t pt-4">
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Class Subjects</label>
-                    
-                    {/* Existing subjects list */}
-                    {subjects.length === 0 ? (
-                      <p className="text-xs text-gray-400 mb-2">No subjects registered for this class. Add one below!</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        {subjects.map((sub) => (
-                          <span key={sub.id} className="inline-flex items-center gap-1 bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-750 text-xs font-semibold px-2.5 py-1 rounded-full border border-gray-200 transition-colors">
-                            <span>{sub.name}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteSubject(e, sub.id)}
-                              className="text-gray-400 hover:text-red-700 font-bold ml-1 transition-colors"
-                              title="Delete Subject"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* Add new subject inline input (2 cell entry format) */}
-                    <div className="flex gap-2 items-center">
+                {/* Step 1: Test Details */}
+                {(testModalMode === "edit" || testModalStep === 1) && (
+                  <div className="p-6 space-y-4">
+                    {/* Test Name */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5">Test Name</label>
                       <input
                         type="text"
-                        placeholder="Subject Name (e.g. Gujarati)"
-                        value={newSubjectName}
-                        onChange={(e) => setNewSubjectName(e.target.value)}
-                        className="flex-1 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        required
+                        value={testName}
+                        onChange={(e) => setTestName(e.target.value)}
+                        placeholder="e.g. June Monthly Exam"
+                        className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                       />
+                    </div>
+
+                    {/* Test Date */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5">Test Date</label>
                       <input
-                        type="number"
-                        placeholder="Total Marks (e.g. 50)"
-                        value={newSubjectTotal}
-                        onChange={(e) => setNewSubjectTotal(e.target.value)}
-                        className="w-28 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        type="date"
+                        required
+                        value={testDate}
+                        onChange={(e) => setTestDate(e.target.value)}
+                        className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                       />
-                      <button
-                        type="button"
-                        onClick={handleAddSubject}
-                        disabled={isAddingSubject}
-                        className="bg-gray-100 hover:bg-gray-250 text-gray-750 px-3 py-2 rounded-xl text-xs font-bold border border-gray-200 transition-all disabled:opacity-50"
+                    </div>
+
+                    {/* Test Status */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1.5">Publish Status</label>
+                      <select
+                        value={testStatus}
+                        onChange={(e) => setTestStatus(e.target.value)}
+                        className="w-full border rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                       >
-                        {isAddingSubject ? "Adding..." : "+ Add"}
-                      </button>
+                        <option value="draft">Draft (Visible to Admin Only)</option>
+                        <option value="published">Published (Visible to Parents)</option>
+                      </select>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Step 2: Subjects Module */}
+                {testModalMode === "create" && testModalStep === 2 && (
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Step 2 of 2: Subjects Selection</span>
+                      <span className="text-xs text-gray-400">Select subjects for this test</span>
+                    </div>
+
+                    <div className="max-h-[45vh] overflow-y-auto pr-1 space-y-2">
+                      {PREBUILT_SUBJECTS.map((subName) => {
+                        const isSelected = selectedSubjectsState[subName] || false
+                        const totalMarks = subjectTotalsState[subName] || "100"
+                        
+                        return (
+                          <div 
+                            key={subName} 
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                              isSelected ? "border-blue-500 bg-blue-50/30" : "border-gray-200 bg-white"
+                            }`}
+                          >
+                            <label className="flex items-center gap-3 cursor-pointer flex-1 select-none">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  setSelectedSubjectsState(prev => ({
+                                    ...prev,
+                                    [subName]: e.target.checked
+                                  }))
+                                }}
+                                className="h-4.5 w-4.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              />
+                              <span className="text-sm font-bold text-gray-800">{subName}</span>
+                            </label>
+
+                            {isSelected && (
+                              <div className="flex items-center gap-2 animate-fade-in">
+                                <span className="text-xs text-gray-500 font-semibold">Total:</span>
+                                <input
+                                  type="number"
+                                  value={totalMarks}
+                                  onChange={(e) => {
+                                    setSubjectTotalsState(prev => ({
+                                      ...prev,
+                                      [subName]: e.target.value
+                                    }))
+                                  }}
+                                  placeholder="100"
+                                  className="w-16 border rounded-lg px-2 py-1 text-xs font-bold text-center bg-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                  min={1}
+                                  required
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowTestModal(false)}
-                    className="border bg-white text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Saving..." : "Save Details"}
-                  </button>
+                  {testModalMode === "create" && testModalStep === 2 ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setTestModalStep(1)}
+                        className="border bg-white text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
+                        disabled={isSubmitting}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
+                      >
+                        {isSubmitting ? "Creating..." : "Create Test ✓"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowTestModal(false)}
+                        className="border bg-white text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
+                      >
+                        {testModalMode === "create" ? "Continue →" : "Save Details ✓"}
+                      </button>
+                    </>
+                  )}
                 </div>
               </form>
             </div>
