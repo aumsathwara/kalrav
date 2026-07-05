@@ -3,6 +3,9 @@ import { getTestsByClass, getSubjectsByClass } from "@/lib/actions/tests.actions
 import { getStudentsByClass } from "@/lib/actions/student.actions"
 import { createAdminClient } from "@/lib/supabase/server"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function AdminTestListPage({ params }: { params: Promise<{ class: string }> }) {
   const { class: classId } = await params
 

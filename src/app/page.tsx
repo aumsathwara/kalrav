@@ -1,6 +1,9 @@
 import { getClasses } from "@/lib/actions/tests.actions"
 import LanguageAndClassList from "@/components/landing/LanguageAndClassList"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function LandingPage() {
   // Query live classes from database
   const classes = await getClasses()

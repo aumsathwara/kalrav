@@ -1,6 +1,9 @@
 import { getClasses } from "@/lib/actions/tests.actions"
 import ClassesDashboard from "@/components/class/ClassesDashboard"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function AdminClassesPage() {
   // Fetch live classes from Supabase
   const classes = await getClasses()

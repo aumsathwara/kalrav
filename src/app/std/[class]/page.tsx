@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/server"
 import { ClassTestDashboard } from "@/components/test/ClassTestDashboard"
 import { translateClassNameToGujarati } from "@/lib/utils"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function StudentOrTestPage({ params }: { params: Promise<{ class: string }> }) {
   const { class: id } = await params
   const supabase = createAdminClient()
