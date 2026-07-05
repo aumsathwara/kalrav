@@ -33,7 +33,8 @@ interface AdminTestHeaderProps {
   testDate: string
   students: Student[]
   subjects: Subject[]
-  initialMarks: Mark[]
+  marks: Mark[]
+  setMarks: React.Dispatch<React.SetStateAction<Mark[]>>
 }
 
 export function AdminTestHeader({
@@ -44,7 +45,8 @@ export function AdminTestHeader({
   testDate,
   students,
   subjects,
-  initialMarks
+  marks,
+  setMarks
 }: AdminTestHeaderProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -84,7 +86,7 @@ export function AdminTestHeader({
           const res = await processOcrImage(testId, base64data)
           if (res.success && res.marks) {
             const formattedMarks: Mark[] = res.marks.map((m: any) => {
-              const existingMark = initialMarks.find(
+              const existingMark = marks.find(
                 (im) => im.student_id === m.student_id && im.subject_id === m.subject_id
               )
               return {
@@ -128,6 +130,7 @@ export function AdminTestHeader({
     setIsSavingOcr(true)
     try {
       await updateMarksBatch(testId, ocrResults)
+      setMarks(ocrResults)
       setShowOcrModal(false)
       router.refresh()
     } catch (err) {
@@ -203,13 +206,13 @@ export function AdminTestHeader({
 
   // 5. WhatsApp: Format share message with Monospace Matrix Table
   const getShareText = () => {
-    const totalMarks = initialMarks.reduce((sum, m) => sum + (m.obtained || 0), 0)
-    const totalMax = initialMarks.reduce((sum, m) => sum + m.total, 0)
+    const totalMarks = marks.reduce((sum, m) => sum + (m.obtained || 0), 0)
+    const totalMax = marks.reduce((sum, m) => sum + m.total, 0)
     const classAverage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0
 
     // 1. Group marks by student to get overall percentages
     const studentPerformance = students.map(student => {
-      const studentMarks = initialMarks.filter(m => m.student_id === student.id)
+      const studentMarks = marks.filter(m => m.student_id === student.id)
       const validMarks = studentMarks.filter(m => m.obtained !== null)
       const obtainedSum = validMarks.reduce((sum, m) => sum + Number(m.obtained), 0)
       const totalSum = validMarks.reduce((sum, m) => sum + Number(m.total), 0)
@@ -226,7 +229,7 @@ export function AdminTestHeader({
 
     // 2. Format marks matrix as a vertical tree list (perfect mobile-alignment on WhatsApp)
     const matrixText = studentPerformance.map(s => {
-      const studentMarks = initialMarks.filter(m => m.student_id === s.id)
+      const studentMarks = marks.filter(m => m.student_id === s.id)
       
       const subjectLines = subjects.map(sub => {
         const mark = studentMarks.find(m => m.subject_id === sub.id)
@@ -255,7 +258,7 @@ ${viewUrl}`
   // 6. Generate Horizonal Bar Chart PNG Blob via HTML5 Canvas
   const generateChartImageBlob = async (): Promise<Blob> => {
     const studentPerformance = students.map(student => {
-      const studentMarks = initialMarks.filter(m => m.student_id === student.id)
+      const studentMarks = marks.filter(m => m.student_id === student.id)
       const validMarks = studentMarks.filter(m => m.obtained !== null)
       const obtainedSum = validMarks.reduce((sum, m) => sum + Number(m.obtained), 0)
       const totalSum = validMarks.reduce((sum, m) => sum + Number(m.total), 0)

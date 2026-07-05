@@ -12,14 +12,23 @@ interface SpreadsheetProps {
   testId: string
   subjects: Subject[]
   students: Student[]
-  initialMarks: Mark[]
-  initialNotes?: Note[]
+  marks: Mark[]
+  setMarks: React.Dispatch<React.SetStateAction<Mark[]>>
+  notes: Note[]
+  setNotes: React.Dispatch<React.SetStateAction<Note[]>>
   totals: Record<string, number>
 }
 
-export default function Spreadsheet({ testId, subjects, students, initialMarks, initialNotes = [], totals }: SpreadsheetProps) {
-  const [marks, setMarks] = useState<Mark[]>(initialMarks)
-  const [notes, setNotes] = useState<Note[]>(initialNotes)
+export default function Spreadsheet({ 
+  testId, 
+  subjects, 
+  students, 
+  marks, 
+  setMarks, 
+  notes, 
+  setNotes, 
+  totals 
+}: SpreadsheetProps) {
   const [localTotals, setLocalTotals] = useState<Record<string, number>>(totals)
   const [editingCell, setEditingCell] = useState<{ studentId: string; subjectId: string } | null>(null)
   const [editValue, setEditValue] = useState<string>("")
@@ -35,15 +44,6 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
       inputRef.current.focus()
     }
   }, [editingCell])
- 
-  // Synchronize local states when props update from the server (e.g. after OCR batch save)
-  useEffect(() => {
-    setMarks(initialMarks)
-  }, [initialMarks])
-
-  useEffect(() => {
-    setNotes(initialNotes)
-  }, [initialNotes])
  
   useEffect(() => {
     setLocalTotals(totals)
