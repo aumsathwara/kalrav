@@ -137,3 +137,35 @@ export async function updateMarkNote(testId: string, studentId: string, subjectI
   return { success: true }
 }
 
+export async function deleteMark(testId: string, studentId: string, subjectId: string) {
+  const supabase = createAdminClient()
+
+  // 1. Delete marks row
+  const { error: markError } = await supabase
+    .from("marks")
+    .delete()
+    .eq("test_id", testId)
+    .eq("student_id", studentId)
+    .eq("subject_id", subjectId)
+
+  if (markError) {
+    console.error("Error deleting mark", markError)
+    throw new Error("Failed to delete mark")
+  }
+
+  // 2. Delete corresponding subject notes if any
+  const { error: noteError } = await supabase
+    .from("notes")
+    .delete()
+    .eq("test_id", testId)
+    .eq("student_id", studentId)
+    .eq("subject_id", subjectId)
+    .eq("type", "subject")
+
+  if (noteError) {
+    console.warn("Failed to delete note during mark deletion:", noteError)
+  }
+
+  return { success: true }
+}
+

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { updateMark, updateSubjectTotalMarks, updateMarkNote } from "@/lib/actions/marks.actions"
+import { updateMark, updateSubjectTotalMarks, updateMarkNote, deleteMark } from "@/lib/actions/marks.actions"
 
 type Subject = { id: string; name: string }
 type Student = { id: string; name: string; emoji: string }
@@ -122,6 +122,32 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
     } catch (error) {
       console.error("Failed to save mark", error)
       alert("Failed to save. Try again.")
+    } finally {
+      setIsSaving(false)
+      setEditingCell(null)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!editingCell) return
+
+    setIsSaving(true)
+    const { studentId, subjectId } = editingCell
+
+    try {
+      await deleteMark(testId, studentId, subjectId)
+
+      // Remove mark from local state
+      setMarks((prev) => prev.filter((m) => !(m.student_id === studentId && m.subject_id === subjectId)))
+      
+      // Remove note from local state
+      setNotes((prev) => prev.filter((n) => !(n.student_id === studentId && n.subject_id === subjectId && n.type === "subject")))
+
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2000)
+    } catch (error) {
+      console.error("Failed to delete mark", error)
+      alert("Failed to delete marks. Try again.")
     } finally {
       setIsSaving(false)
       setEditingCell(null)
@@ -307,27 +333,44 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
                                 disabled={isSaving}
                               />
                             </div>
-                            <div className="flex gap-2 justify-end mt-0.5">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setEditingCell(null)
-                                }}
-                                className="px-2.5 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded font-semibold transition-colors"
-                                disabled={isSaving}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleSave()
-                                }}
-                                className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors"
-                                disabled={isSaving}
-                              >
-                                {isSaving ? "..." : "Save"}
-                              </button>
+                            <div className="flex gap-1.5 justify-between mt-1 items-center">
+                              {getMark(editingCell.studentId, editingCell.subjectId) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (confirm("Are you sure you want to delete this mark? Student will be marked absent.")) {
+                                      handleDelete()
+                                    }
+                                  }}
+                                  className="px-2 py-1 text-xs bg-red-50 text-red-600 hover:bg-red-100 rounded font-semibold transition-colors"
+                                  disabled={isSaving}
+                                  title="Mark student absent by deleting score"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                              <div className="flex gap-1.5 ml-auto">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingCell(null)
+                                  }}
+                                  className="px-2.5 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded font-semibold transition-colors"
+                                  disabled={isSaving}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleSave()
+                                  }}
+                                  className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors"
+                                  disabled={isSaving}
+                                >
+                                  {isSaving ? "..." : "Save"}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -416,21 +459,36 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
               </div>
             </div>
             
-            <div className="flex gap-2 justify-end mt-2">
-              <button
-                onClick={() => setEditingCell(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors"
-                disabled={isSaving}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm shadow-blue-200"
-                disabled={isSaving}
-              >
-                {isSaving ? "Saving..." : "Save ✓"}
-              </button>
+            <div className="flex gap-2 justify-between mt-3 items-center">
+              {getMark(editingCell.studentId, editingCell.subjectId) && (
+                <button
+                  onClick={() => {
+                    if (confirm("Are you sure you want to delete this mark? Student will be marked absent.")) {
+                      handleDelete()
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-xl text-sm transition-colors"
+                  disabled={isSaving}
+                >
+                  Delete
+                </button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  onClick={() => setEditingCell(null)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm shadow-blue-200"
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving..." : "Save ✓"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
