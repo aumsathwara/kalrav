@@ -87,35 +87,45 @@ export default function Spreadsheet({ testId, subjects, students, initialMarks, 
     }
  
     try {
-      await updateMark(testId, studentId, subjectId, obtained, total)
-      await updateMarkNote(testId, studentId, subjectId, editNoteValue)
-      
-      setMarks((prev) => {
-        const index = prev.findIndex((m) => m.student_id === studentId && m.subject_id === subjectId)
-        if (index >= 0) {
-          const newMarks = [...prev]
-          newMarks[index] = { ...newMarks[index], obtained, total }
-          return newMarks
-        } else {
-          return [...prev, { student_id: studentId, subject_id: subjectId, obtained, total }]
-        }
-      })
-
-      setNotes((prev) => {
-        const index = prev.findIndex((n) => n.student_id === studentId && n.subject_id === subjectId && n.type === "subject")
-        if (index >= 0) {
-          const newNotes = [...prev]
-          if (editNoteValue.trim() === "") {
-            newNotes.splice(index, 1)
+      if (obtained === null) {
+        await deleteMark(testId, studentId, subjectId)
+        
+        // Remove mark from local state
+        setMarks((prev) => prev.filter((m) => !(m.student_id === studentId && m.subject_id === subjectId)))
+        
+        // Remove note from local state
+        setNotes((prev) => prev.filter((n) => !(n.student_id === studentId && n.subject_id === subjectId && n.type === "subject")))
+      } else {
+        await updateMark(testId, studentId, subjectId, obtained, total)
+        await updateMarkNote(testId, studentId, subjectId, editNoteValue)
+        
+        setMarks((prev) => {
+          const index = prev.findIndex((m) => m.student_id === studentId && m.subject_id === subjectId)
+          if (index >= 0) {
+            const newMarks = [...prev]
+            newMarks[index] = { ...newMarks[index], obtained, total }
+            return newMarks
           } else {
-            newNotes[index] = { ...newNotes[index], content: editNoteValue.trim() }
+            return [...prev, { student_id: studentId, subject_id: subjectId, obtained, total }]
           }
-          return newNotes
-        } else if (editNoteValue.trim() !== "") {
-          return [...prev, { student_id: studentId, subject_id: subjectId, content: editNoteValue.trim(), type: "subject" }]
-        }
-        return prev
-      })
+        })
+
+        setNotes((prev) => {
+          const index = prev.findIndex((n) => n.student_id === studentId && n.subject_id === subjectId && n.type === "subject")
+          if (index >= 0) {
+            const newNotes = [...prev]
+            if (editNoteValue.trim() === "") {
+              newNotes.splice(index, 1)
+            } else {
+              newNotes[index] = { ...newNotes[index], content: editNoteValue.trim() }
+            }
+            return newNotes
+          } else if (editNoteValue.trim() !== "") {
+            return [...prev, { student_id: studentId, subject_id: subjectId, content: editNoteValue.trim(), type: "subject" }]
+          }
+          return prev
+        })
+      }
       
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 2000)
